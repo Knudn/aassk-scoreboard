@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Standard Menu</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        #live_table {
+            margin-bottom: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="max-w-xs mx-auto mb-4" id="live_table_sub">
+        <div class="bg-white p-0.5 rounded-lg shadow-sm flex">
+            {% for cat in categories %}
+            <a href="/live/resultatliste?type={{ cat }}" class="live-toggle-btn flex-1 text-center py-1 px-2 text-sm font-medium rounded transition-all duration-300 focus:outline-none {{ 'bg-indigo-600 text-white' if live_page == cat else 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">
+                {{ cat }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    <div id="content-container">
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const toggleBtns = document.querySelectorAll('.live-toggle-btn');
+
+        toggleBtns.forEach(btn => {
+            btn.addEventListener('click', function(event) {
+                
+                toggleBtns.forEach(b => {
+                    b.classList.remove('bg-indigo-600', 'text-white');
+                    b.classList.add('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200');
+                });
+                this.classList.remove('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200');
+                this.classList.add('bg-indigo-600', 'text-white');
+
+            });
+        });
+
+        const currentPath = window.location.pathname + window.location.search;
+        const activeBtn = document.querySelector(`.live-toggle-btn[href="${currentPath}"]`);
+        if (activeBtn) {
+            activeBtn.classList.remove('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200');
+            activeBtn.classList.add('bg-indigo-600', 'text-white');
+        }
+    });
+    </script>
+</body>
+</html>

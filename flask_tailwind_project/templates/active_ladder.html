@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery-bracket/0.11.1/jquery.bracket.min.css">
+<style>
+    .turnament-bracket {
+        overflow-x: auto;
+        margin-top: 2rem;
+    }
+    @media (max-width: 768px) {
+        .container {
+            padding: 0.5rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-4xl font-bold mb-4 text-gray-800 text-center">{{ event_name }}</h1>
+    <p class="text-xl mb-4 text-center">Event: <a href="{{ url_for('event_overview', event_name=event_name) }}" class="text-blue-600 hover:text-blue-800 underline">{{ event_name }}</a></p>
+    <p class="mb-6 text-gray-600 text-center">Date: {{ date }}</p>
+
+    <h2 class="text-2xl font-bold mb-4 text-gray-800 text-center">Resultatliste</h2>
+
+    <div id="main_title"></div>
+    <div class="turnament-bracket">
+        <div id="doubleElimination"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-bracket/0.11.1/jquery.bracket.min.js"></script>
+<script src="{{ url_for('static', filename='js/bracket-functions.js') }}"></script>
+<script>
+    $(function() {
+        initializeBracket("{{ race_title|safe }}", "{{ date|safe }}");
+    });
+</script>
+{% endblock %}

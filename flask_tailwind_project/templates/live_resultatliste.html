@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+{% with active_page='resultatliste' %}
+    {% include 'toggle_live_switch.html' %}
+{% endwith %}
+
+{% with active_page='none' %}
+    {% include 'live_resultatliste_toggle.html' %}
+{% endwith %}
+
+
+{% endblock %}

@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-4xl font-bold mb-4 text-gray-800 text-center">{{ event_name }}</h1>
+    <p class="text-xl mb-4 text-center">Event: <a href="{{ url_for('event_overview', event_name=event_name) }}" class="text-blue-600 hover:text-blue-800 underline">{{ event_name }}</a></p>
+    <p class="mb-6 text-gray-600 text-center">Date: {{ date }}</p>
+
+    <h2 class="text-2xl font-bold mb-4 text-gray-800 text-center">Resultatliste</h2>
+    <div class="overflow-x-auto mb-8">
+        <table class="w-full text-sm text-left text-gray-500">
+            <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                <tr>
+                    <th scope="col" class="px-6 py-3 text-center">Position</th>
+                    <th scope="col" class="px-6 py-3 text-center">Driver</th>
+                    <th scope="col" class="px-6 py-3 text-center">Club</th>
+                    <th scope="col" class="px-6 py-3 text-center">Snowmobile</th>
+                    <th scope="col" class="px-6 py-3 text-center">Fastest Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set position = namespace(value=1) %}
+                    {% for entry in fastest_times %}
+                        {% if entry.time > 0 %}
+                            <tr class="bg-white border-b hover:bg-gray-50">
+                                <td class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap text-center">{{ position.value }}</td>
+                                <td class="px-6 py-4 text-center">{{ entry.driver }}</td>
+                                <td class="px-6 py-4 text-center">{{ entry.club }}</td>
+                                <td class="px-6 py-4 text-center">{{ entry.penalty }}</td>
+                                <td class="px-6 py-4 text-center">
+                                    {% if entry.time > 0 %}
+                                        {{ "%0.2f"|format(entry.time|float / 1000) }} s
+                                    {% else %}
+                                        DNF
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% set position.value = position.value + 1 %}
+                    {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="space-y-4">
+        {% for n in range(0,heats) %}
+        <div class="border border-gray-200 rounded-lg">
+            <button class="flex justify-between items-center w-full p-4 font-medium text-left text-gray-500 rounded-lg focus:outline-none focus:ring-4 focus:ring-gray-200 hover:bg-gray-100" data-accordion-target="#accordion-heat-{{ n + 1 }}" aria-expanded="false" aria-controls="accordion-heat-{{ n + 1 }}">
+                <span class="text-2xl font-bold text-gray-800">Heat {{ n + 1 }} Results</span>
+                <svg data-accordion-icon class="w-6 h-6 shrink-0" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                </svg>
+            </button>
+            <div id="accordion-heat-{{ n + 1 }}" class="hidden overflow-hidden">
+                <div class="p-4 bg-white">
+                    <table class="w-full text-sm text-left text-gray-500">
+                        <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-center">Position</th>
+                                <th scope="col" class="px-6 py-3 text-center">Driver</th>
+                                <th scope="col" class="px-6 py-3 text-center">Club</th>
+                                <th scope="col" class="px-6 py-3 text-center">Snowmobile</th>
+                                <th scope="col" class="px-6 py-3 text-center">Finish Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for result_dict in race_results %}
+                            {% for k, result in result_dict.items() %}
+                            {% if result.heat == n + 1 and result.penalty == 0  and result.finishtime != 0 %}
+                            <tr class="bg-white border-b hover:bg-gray-50">
+                                <td class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap text-center">{{ k + 1 }}</td>
+                                <td class="px-6 py-4 text-center">{{ result.name }}</td>
+                                <td class="px-6 py-4 text-center">{{ result.driver_club }}</td>
+                                <td class="px-6 py-4 text-center">{{ result.snowmobile }}</td>
+                                <td class="px-6 py-4 text-center">
+                                    {% if result.finishtime > 0 %}
+                                        {{ "%0.2f"|format(result.finishtime|float / 1000) }} s
+                                    {% else %}
+                                        DNF
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        <div class="border border-gray-200 rounded-lg">
+            <button class="flex justify-between items-center w-full p-4 font-medium text-left text-gray-500 rounded-lg focus:outline-none focus:ring-4 focus:ring-gray-200 hover:bg-gray-100" data-accordion-target="#accordion-penalties" aria-expanded="false" aria-controls="accordion-penalties">
+                <span class="text-2xl font-bold text-gray-800">Entries with Penalties</span>
+                <svg data-accordion-icon class="w-6 h-6 shrink-0" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                </svg>
+            </button>
+            <div id="accordion-penalties" class="hidden overflow-hidden">
+                <div class="p-4 bg-white">
+                    <table class="w-full text-sm text-left text-gray-500">
+                        <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-center">Driver</th>
+                                <th scope="col" class="px-6 py-3 text-center">Club</th>
+                                <th scope="col" class="px-6 py-3 text-center">Snowmobile</th>
+                                <th scope="col" class="px-6 py-3 text-center">Finish Time</th>
+                                <th scope="col" class="px-6 py-3 text-center">Penalty</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for result_dict in race_results %}
+                            {% for k, result in result_dict.items() %}
+                            {% if result.penalty != 0 %}
+                            <tr class="bg-white border-b hover:bg-gray-50">
+                                <td class="px-6 py-4 text-center">{{ result.name }}</td>
+                                <td class="px-6 py-4 text-center">{{ result.driver_club }}</td>
+                                <td class="px-6 py-4 text-center">{{ result.snowmobile }}</td>
+                                <td class="px-6 py-4 text-center">
+                                    {% if result.finishtime > 0 %}
+                                        {{ "%0.2f"|format(result.finishtime|float / 1000) }} s
+                                    {% else %}
+                                        DNF
+                                    {% endif %}
+                                </td>
+                                <td class="px-6 py-4 text-red-600 text-center">+{{ result.penalty }} s</td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/forms@0.5.2/dist/forms.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', (event) => {
+        const accordionButtons = document.querySelectorAll('[data-accordion-target]');
+        
+        accordionButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const target = document.querySelector(button.getAttribute('data-accordion-target'));
+                const icon = button.querySelector('[data-accordion-icon]');
+                
+                target.classList.toggle('hidden');
+                icon.classList.toggle('rotate-180');
+                
+                const expanded = target.classList.contains('hidden') ? 'false' : 'true';
+                button.setAttribute('aria-expanded', expanded);
+            });
+        });
+    });
+</script>
+{% endblock %}

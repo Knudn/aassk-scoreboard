@@ -1,0 +1,43 @@
+<style>
+    .toggle-btn {
+        font-size: clamp(0.7rem, 2.5vw, 1rem);
+        padding: 0.5rem 0.25rem;
+        white-space: nowrap;
+    }
+    @media (min-width: 670px) {
+        #live_table > div {
+            max-width: 600px;
+            padding: 0.5rem;
+        }
+    }
+</style>
+
+<div class="mb-8" id="live_table">
+    <div class="flex justify-center items-center bg-gray-200 p-1 rounded-lg w-full mx-auto">
+        <a href="/live/startlist" class="toggle-btn flex-1 text-center rounded-md transition-all duration-300 focus:outline-none {% if active_page == 'startlist' %}bg-blue-500 text-white{% endif %}" data-option="startlist">
+            Startlister
+        </a>
+        <a href="/" class="toggle-btn flex-1 text-center rounded-md transition-all duration-300 focus:outline-none {% if active_page == 'live' %}bg-blue-500 text-white{% endif %}" data-option="live">
+            LIVE
+        </a>
+        <a href="/live/resultatliste" class="toggle-btn flex-1 text-center rounded-md transition-all duration-300 focus:outline-none {% if active_page == 'resultatliste' %}bg-blue-500 text-white{% endif %}" data-option="resultatliste">
+            Resultatliste
+        </a>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const toggleBtns = document.querySelectorAll('.toggle-btn');
+        toggleBtns.forEach(btn => {
+            btn.addEventListener('click', function(event) {
+                // Only prevent default if it's not an actual navigation
+                if (this.getAttribute('href') === window.location.pathname) {
+                    event.preventDefault();
+                }
+                toggleBtns.forEach(b => b.classList.remove('bg-blue-500', 'text-white'));
+                this.classList.add('bg-blue-500', 'text-white');
+            });
+        });
+    });
+</script>

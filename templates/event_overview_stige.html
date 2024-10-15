@@ -1,0 +1,631 @@
+{% extends "base.html" %}
+
+{% block title %}Event Brackets{% endblock %}
+
+{% block head %}
+{{ super() }}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/1.6.2/jquery.min.js"></script>
+<script src="{{ url_for('static', filename='js/ladder/vendor.js') }}"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/ladder/app.css') }}">
+
+<style>
+
+    .tournament-bracket {
+        margin-bottom: 2rem;
+        width: 100%;
+        -webkit-overflow-scrolling: touch;
+    }
+    .event-table {
+        margin-left: auto;
+        margin-right: auto;
+    }
+    .jQBracket {
+        min-width: 1000px; /* Adjust this value based on your largest bracket */
+        margin: 0 auto;
+        color: black;
+    }
+
+    #eventsContainer {
+        overflow-x: hidden;
+    }
+    .hidden {
+        display: none;
+    }
+
+    .center {
+        margin-left: auto;
+        margin-right: auto;
+    }
+    .cid-column {
+            display: table-cell;
+    }
+    @media (max-width: 1024px) {
+        .tournament-bracket {
+            max-width: 100vw;
+        }
+        .jQBracket {
+            transform-origin: left top;
+            color: black;
+        }
+        .event-table th, .event-table td {
+            padding: 0.5rem 0.25rem;
+            font-size: 0.75rem;
+        }
+        .cid-column {
+            display: none;
+        }
+    }
+</style>
+<script>
+const eventData = {{ event_data | tojson | safe }};
+const event_table_data = {{ table_data | tojson | safe }};
+const date = {{ event_date }};
+number_of_events = eventData.length
+
+drivers = []
+
+eventData.forEach((event, index) => {
+    for (const key in event["Timedata"]) {
+        if (event["Timedata"].hasOwnProperty(key)) {
+            event["Timedata"][key].forEach((entry) => {
+                if (!drivers.includes(entry[1])) {
+                    drivers.push(entry[1]);
+                }
+            });
+        }
+    }
+});
+
+number_of_driver = drivers.length
+
+console.log(number_of_events)
+console.log(number_of_driver)
+{{ event_date }} //This is the date of the event
+
+document.addEventListener('DOMContentLoaded', function() {
+    const header = document.querySelector('.max-w-3xl.mx-auto.text-center.mt-16');
+    if (header) {
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'text-lg text-gray-700 mt-6 flex justify-center items-center';
+        infoDiv.innerHTML = `
+            <div class="flex items-center">
+                <span class="font-bold mr-2">Klasser:</span>
+                <span>${number_of_events}</span>
+            </div>
+            <div class="mx-6 h-6 w-px bg-gray-300"></div>
+            <div class="flex items-center" style="padding: 10px;">
+                <span class="font-bold mr-2">Sjåfører:</span>
+                <span>${number_of_driver}</span>
+            </div>
+            <div class="mx-6 h-6 w-px bg-gray-300"></div>
+            <div class="flex items-center">
+                <span class="font-bold mr-2">Dato:</span>
+                <span>{{ event_date }}</span>
+            </div >
+        `;
+        header.appendChild(infoDiv);
+    }
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8 max-w-4xl">
+    <div class="max-w-3xl mx-auto text-center mt-16">
+        <h1 class="text-4xl font-bold text-gray-900 leading-tight mb-2 border-t-4 border-b-4 border-purple-600 py-4">
+            {{event_name}}
+        </h1>
+    </div>
+
+    <div class="flex justify-center mb-6">
+        <div class="inline-flex rounded-md shadow-sm" role="group">
+            <button type="button" id="bracketViewBtn" class="px-3 py-1 text-sm font-medium text-white bg-blue-500 border border-gray-200 rounded-l-lg hover:bg-blue-600 focus:z-10 focus:ring-2 focus:ring-blue-500 focus:text-white">
+                Stige
+            </button>
+            <button type="button" id="tableViewBtn" class="px-3 py-1 text-sm font-medium text-gray-900 bg-white border border-gray-200 rounded-r-lg hover:bg-gray-100 hover:text-blue-500 focus:z-10 focus:ring-2 focus:ring-blue-500 focus:text-blue-500">
+                Tabell
+            </button>
+        </div>
+    </div>
+
+    <div id="eventsContainer">
+        <!-- Event containers will be dynamically inserted here -->
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+
+
+function saveFn(data, userData) {
+    console.log('Bracket data saved:', data);
+}
+
+function edit_fn(container, data, place, time, doneCb) {
+    // Implement edit functionality if needed
+}
+
+function render_fn(container, data, score, state) {
+    switch (state) {
+        case "empty-bye":
+            container.append("No team")
+            return;
+        case "empty-tbd":
+            container.append("Upcoming")
+            return;
+        case "entry-no-score":
+        case "entry-default-win":
+        case "entry-complete":
+            container.append(data.name).append();
+            return;
+    }
+}
+
+function driver_order_setting(timedata) {
+    var driver_order_object = {};
+    for (const key in timedata) {
+        if (timedata.hasOwnProperty(key)) {
+            const dataArray = timedata[key];
+            dataArray.forEach(entry => {
+                if (!driver_order_object.hasOwnProperty(key)) {
+                    driver_order_object[key] = [];
+                }
+                driver_order_object[key].push(entry);
+            });
+        }
+    }
+    return driver_order_object;
+}
+
+function transformData(originalData) {
+    let teams = [];
+    let results = [];
+    let driver_pair_order = driver_order_setting(originalData.Timedata)
+    let exit_loop = false
+    let skip_entry = false
+    let finale = []
+    let semi_finale = []
+
+    var heat_count = Math.ceil(Math.log2(originalData.Timedata["1"].length));
+
+    // Check if the required data exists and is in the correct format
+    if (originalData && originalData.Timedata && Array.isArray(originalData.Timedata["1"])) {
+        for (let i = 0; i < originalData.Timedata["1"].length; i += 2) {
+
+            if (i + 1 < originalData.Timedata["1"].length) {
+                // Create a pair with the current and next team
+                let pair = [
+                    { "name": originalData.Timedata["1"][i][1] + " " + originalData.Timedata["1"][i][2], "flag": "no" },
+                    { "name": originalData.Timedata["1"][i + 1][1] + " " + originalData.Timedata["1"][i + 1][2], "flag": "no" }
+                ];
+                teams.push(pair);
+            } else {
+                // If there's no pair (odd number of teams), add the last team alone
+                let single = { "name": originalData.Timedata["1"][i][1], "flag": "no" };
+                teams.push([single]);
+            }
+        }
+    } else {
+        console.error('Data is not available or in an unexpected format');
+    }
+    const isEven = num => num % 2 === 0;
+    full_loc_array = []
+    count = 0
+
+
+    for (let key in originalData.Timedata) {
+        med_loc_array = []
+        if (originalData.Timedata.hasOwnProperty(key)) {
+            
+            let dataArray = originalData.Timedata[key];
+            if (key == 1) { 
+              num = key
+            } else {
+              num = (key - 1)
+            }
+
+            for (let driver_o in driver_pair_order[num]) {
+              
+              for (let i = 0; i < dataArray.length; i += 1) {
+
+
+                    if (typeof new_loc_array == 'undefined') {
+                          new_loc_array = []
+                        }
+                    
+                    if (heat_count == key) {
+                      let finale_pair = []
+                      let semi_finale_pair = []
+
+                      let tmp_finale_pair = []
+                      let tmp_semi_finale = []
+
+
+                      count += 1
+                      let tmp_key = (key -1)
+                      if (driver_pair_order[(tmp_key)] == undefined) {
+                        tmp_key += 1
+                      }
+                      
+                      if (driver_pair_order[(tmp_key)][0][5] > driver_pair_order[(tmp_key)][1][5] && driver_pair_order[(tmp_key)][1][6] == 0) {
+                        tmp_semi_finale.push(driver_pair_order[(tmp_key)][0])
+                        tmp_finale_pair.push(driver_pair_order[(tmp_key)][1])
+
+
+                      } else {
+                        tmp_semi_finale.push(driver_pair_order[(tmp_key)][1])
+                        tmp_finale_pair.push(driver_pair_order[(tmp_key)][0])
+                      }
+
+                      if (driver_pair_order[(tmp_key)].length > 2) {
+                        
+                      if (driver_pair_order[(tmp_key)][2][5] > driver_pair_order[(tmp_key)][3][5] && driver_pair_order[(tmp_key)][3][6] == 0) {
+                        tmp_semi_finale.push(driver_pair_order[(tmp_key)][2])
+                        tmp_finale_pair.push(driver_pair_order[(tmp_key)][3])
+                      } else {
+                        tmp_semi_finale.push(driver_pair_order[(tmp_key)][3])
+                        tmp_finale_pair.push(driver_pair_order[(tmp_key)][2])
+                      }
+                    }
+
+
+                      for (let b in driver_pair_order[(tmp_key)]) {
+
+                        for (let g in tmp_finale_pair) {
+                          if (tmp_finale_pair[g][5] == driver_pair_order[(tmp_key)][b][5]) {
+                            for (let h in driver_pair_order[(key)]) {
+                              if (driver_pair_order[key][h][0] == tmp_finale_pair[g][0]) {
+                                if (driver_pair_order[key][h][6] == 1) {
+                                  finale_pair.push(11111111)
+                                } else if (driver_pair_order[key][h][6] == 2) {
+                                  finale_pair.push(22222222)
+                                } else if (driver_pair_order[key][h][6] == 3) {
+                                  finale_pair.push(33333333)
+                                } else {
+                                  finale_pair.push(driver_pair_order[key][h][5])
+                                }
+                              }
+                            }
+                          }
+                        }
+
+                        for (let g in tmp_semi_finale) {
+                          if (tmp_semi_finale[g][5] == driver_pair_order[(tmp_key)][b][5]) {
+                            for (let h in driver_pair_order[(key)]) {
+                              if (driver_pair_order[key][h][0] == tmp_semi_finale[g][0]) {
+                                if (driver_pair_order[key][h][6] == 1) {
+                                  semi_finale_pair.push(11111111)
+                                } else if (driver_pair_order[key][h][6] == 2) {
+                                  semi_finale_pair.push(22222222)
+                                } else if (driver_pair_order[key][h][6] == 3) {
+                                  semi_finale_pair.push(33333333)
+                                } else {
+                                  semi_finale_pair.push(driver_pair_order[key][h][5])
+                                }
+                                
+                              }
+                            }
+                          }
+                        }
+                    }
+                    
+                    med_loc_array.push(finale_pair)
+                    med_loc_array.push(semi_finale_pair)
+                      exit_loop = true;
+                      break
+
+                    } else if (driver_pair_order[num][driver_o][0] == dataArray[i][0] && heat_count != key) {
+                        count += 1
+
+                        if (dataArray[i][6] == 1) {
+                          entry = 11111111
+                        } else if (dataArray[i][6] == 2) {
+                          entry = 22222222
+
+                        } else if (dataArray[i][6] == 3)
+                          entry = 33333333
+
+                        else {
+                          entry = dataArray[i][5]
+                          }
+                        new_loc_array.push(entry)
+
+                        if (count == 2) {
+                          count = 0
+                          
+                          med_loc_array.push(new_loc_array)
+                          new_loc_array = []
+                          break;
+                        }
+               } 
+          }
+          if (exit_loop == true) {break}
+      }
+        }
+        full_loc_array.push(med_loc_array)
+
+    }
+    if (full_loc_array[1] == undefined) {
+        full_loc_array[0] = [full_loc_array[0][0][0], full_loc_array[0][1][0]]
+    }
+    
+    results = full_loc_array
+    data = {teams, results}
+    return data
+
+}
+
+function convertMilliseconds(ms) {
+    const seconds = (ms / 1000).toFixed(3);
+    const minutes = Math.floor(seconds / 60);
+    
+    if (minutes > 0) {
+        const remainingSeconds = (seconds % 60).toFixed(3);
+        return `${minutes}:${remainingSeconds.padStart(6, '0')}`;
+    } else {
+        return seconds;
+    }
+}
+
+function processDriverTime(driverData) {
+    if (driverData[6] === 1) return 11111111;
+    if (driverData[6] === 2) return 22222222;
+    if (driverData[6] === 3) return 33333333;
+    return driverData[5];
+}
+
+function initializeBracket(data, eventIndex) {
+    const driversNum = data.teams.length * 2;
+    let teamWidth, scoreWidth, matchMargin, roundMargin;
+
+    if (driversNum <= 4) {
+        teamWidth = 300;
+        scoreWidth = 60;
+        matchMargin = 100;
+        roundMargin = 100;
+    } else if (driversNum <= 8) {
+        teamWidth = 300;
+        scoreWidth = 60;
+        matchMargin = 100;
+        roundMargin = 100;
+    } else if (driversNum <= 16) {
+        teamWidth = 220;
+        scoreWidth = 60;
+        matchMargin = 30;
+        roundMargin = 80;
+    } else {
+        teamWidth = 250;
+        scoreWidth = 60;
+        matchMargin = 15;
+        roundMargin = 80;
+    }
+
+    $(`#doubleElimination${eventIndex}`).bracket({
+        dir: 'lr',
+        disableToolbar: true,
+        teamWidth: teamWidth,
+        scoreWidth: scoreWidth,
+        matchMargin: matchMargin,
+        roundMargin: roundMargin,
+        centerConnectors: true,
+        init: data,
+        save: saveFn,
+        decorator: {
+            edit: edit_fn,
+            render: render_fn
+        }
+    });
+}
+
+function adjustBracketHeight(bracketElement) {
+    const jqBracket = bracketElement.querySelector('.jQBracket');
+    if (jqBracket) {
+        bracketElement.style.height = `${jqBracket.scrollHeight}px`;
+    }
+}
+
+function scaleBracket(bracketElement) {
+    const windowWidth = window.innerWidth;
+    const containerWidth = bracketElement.parentElement.offsetWidth;
+    const menuWidth = document.getElementById('sidebar').offsetWidth
+
+    if (windowWidth > 1023) {
+        windowWidth_new = windowWidth * 0.95
+        availableWidth = (windowWidth - menuWidth);
+    } else {
+        containerWidth_new = containerWidth * 0.95
+        availableWidth = containerWidth_new;
+    }
+
+    const jqBracket = bracketElement.querySelector('.jQBracket');
+
+    const bracketWidth = jqBracket.offsetWidth;
+    const scale = Math.min(1, availableWidth / bracketWidth);
+    
+    jqBracket.style.transform = `scale(${scale})`;
+    jqBracket.style.transformOrigin = 'top left';
+    bracketElement.style.height = `${jqBracket.scrollHeight * scale}px`;
+    bracketElement.style.width = '100%';
+}
+
+function scaleAllBrackets() {
+    document.querySelectorAll('.tournament-bracket').forEach(bracketElement => {
+        scaleBracket(bracketElement);
+    });
+}
+
+function initializeScaling() {
+    scaleAllBrackets();
+    window.addEventListener('resize', scaleAllBrackets);
+}
+
+function createTableView(event, index) {
+    const table_data_new = event_table_data[event["event_data"][0]];
+
+    const tableElement = document.createElement('div');
+    tableElement.id = `eventTable${index}`;
+    tableElement.className = 'event-table w-full max-w-4xl mx-auto mb-8 hidden';
+    
+    let tmp_table = `
+        <div class="overflow-x-auto shadow-sm rounded-lg">
+            <table class="min-w-full divide-y divide-gray-200 center" style="width: 100%;">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
+                        <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider cid-column">CID</th>
+                        <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Navn</th>
+                        <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Kjøretøy</th>
+                        <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Tid</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white" id="tableBody${index}">
+    `;
+    
+    let position = 1;
+    let entryCount = 0;
+    for (const result in table_data_new) {
+        for (const result_entry in table_data_new[result]) {
+            const entry = table_data_new[result][result_entry];
+            if (entry["penalty"] == 1) {
+                time = "DNS"
+            } else if (entry["penalty"] == 2) {
+                time = "DNF"
+            } else if (entry["penalty"] == 3) {
+                time = "DSQ"
+            } else {
+                time = convertMilliseconds(entry["finishtime"])
+            }
+            const isHidden = entryCount >= 3 ? 'hidden' : '';
+            let medal = '';
+            if (position === 1) medal = '🥇';
+            else if (position === 2) medal = '🥈';
+            else if (position === 3) medal = '🥉';
+
+            if (entryCount >= 3) {
+                pos = position
+            } else {
+                pos = ""
+            }
+            
+            tmp_table += `
+                <tr class="${isHidden} table-entry">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">${medal} ${pos}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-center cid-column">${entry["cid"]}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-center">${entry["name"]}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-center">${entry["snowmobile"]}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-center">${time}</td>
+                </tr>
+            `;
+            position++;
+            entryCount++;
+        }
+    }
+
+    tmp_table += `
+                </tbody>
+            </table>
+    `;
+
+    if (entryCount > 3) {
+        tmp_table += `
+            <div id="expandControl${index}" class="bg-gray-50 px-6 py-2 text-center cursor-pointer hover:bg-gray-100 transition-colors duration-200">
+                <svg class="w-6 h-6 mx-auto text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+            </div>
+        `;
+    }
+
+    tmp_table += `
+        </div>
+    `;
+
+    tableElement.innerHTML = tmp_table;
+
+    // Add event listener to the expand control
+    if (entryCount > 3) {
+        const expandControl = tableElement.querySelector(`#expandControl${index}`);
+        const tableBody = tableElement.querySelector(`#tableBody${index}`);
+        
+        if (expandControl && tableBody) {
+            const allEntries = tableBody.querySelectorAll('.table-entry');
+            const arrow = expandControl.querySelector('svg');
+
+            expandControl.addEventListener('click', () => {
+                const isExpanded = arrow.style.transform === 'rotate(180deg)';
+                allEntries.forEach((entry, i) => {
+                    if (i < 3) return; // Skip the first three entries as they're always visible
+                    entry.classList.toggle('hidden', isExpanded);
+                });
+                arrow.style.transform = isExpanded ? '' : 'rotate(180deg)';
+                arrow.style.transition = 'transform 0.3s ease';
+            });
+        }
+    }
+
+    return tableElement;
+}
+
+
+$(function() {
+    const eventsContainer = document.getElementById('eventsContainer');
+    const bracketViewBtn = document.getElementById('bracketViewBtn');
+    const tableViewBtn = document.getElementById('tableViewBtn');
+
+    eventData.forEach((event, index) => {
+        const eventElement = document.createElement('div');
+        eventElement.id = `event${index}`;
+        eventElement.className = 'event-container mb-8';
+        
+        const bracketElement = document.createElement('div');
+        bracketElement.id = `doubleElimination${index}`;
+        bracketElement.className = 'tournament-bracket';
+
+        const tableElement = createTableView(event, index);
+
+        eventElement.innerHTML = `
+            <h2 class="text-2xl font-bold mb-4">${event.event_data[0]}</h2>
+        `;
+        eventElement.appendChild(bracketElement);
+        eventElement.appendChild(tableElement);
+        
+        eventsContainer.appendChild(eventElement);
+
+        const bracketData = transformData(event);
+        initializeBracket(bracketData, index);
+        
+    });
+
+    // Initialize scaling after all brackets are rendered
+    
+    
+
+    $(document).ready(function() {
+        initializeScaling();
+    });
+
+    // Toggle functionality
+    bracketViewBtn.addEventListener('click', () => {
+        document.querySelectorAll('.tournament-bracket').forEach(el => el.classList.remove('hidden'));
+        document.querySelectorAll('.event-table').forEach(el => el.classList.add('hidden'));
+        bracketViewBtn.classList.add('bg-blue-700', 'text-white');
+        bracketViewBtn.classList.remove('text-gray-900', 'bg-white', 'hover:bg-gray-100', 'hover:text-blue-700');
+        tableViewBtn.classList.remove('bg-blue-700', 'text-white');
+        tableViewBtn.classList.add('text-gray-900', 'bg-white', 'hover:bg-gray-100', 'hover:text-blue-700');
+    });
+
+    tableViewBtn.addEventListener('click', () => {
+        document.querySelectorAll('.tournament-bracket').forEach(el => el.classList.add('hidden'));
+        
+        document.querySelectorAll('.event-table').forEach(el => el.classList.remove('hidden'));
+        document.querySelectorAll('bracket').forEach(el => el.classList.remove('hidden'));
+        tableViewBtn.classList.add('bg-blue-700', 'text-white');
+        tableViewBtn.classList.remove('text-gray-900', 'bg-white', 'hover:bg-gray-100', 'hover:text-blue-700');
+        bracketViewBtn.classList.remove('bg-blue-700', 'text-white');
+        bracketViewBtn.classList.add('text-gray-900', 'bg-white', 'hover:bg-gray-100', 'hover:text-blue-700');
+    });
+});
+</script>
+{% endblock %}

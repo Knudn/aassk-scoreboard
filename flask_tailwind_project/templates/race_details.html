@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block content %}
+
+
+{{ race_title }}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-4xl font-bold mb-4 text-gray-800">{{ event_name }}</h1>
+    <p class="text-xl mb-4">Event: <a href="{{ url_for('event_overview', event_name=event_name) }}" class="text-blue-600 hover:text-blue-800 underline">{{ event_name }}</a></p>
+    <p class="mb-6 text-gray-600">Date: {{ date }}</p>
+
+    <h2 class="text-2xl font-bold mb-4 text-gray-800">Race Results</h2>
+    <div class="overflow-x-auto mb-8">
+        <table class="w-full text-sm text-left text-gray-500">
+            <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                <tr>
+                    <th scope="col" class="px-6 py-3">Position</th>
+                    <th scope="col" class="px-6 py-3">Driver</th>
+                    <th scope="col" class="px-6 py-3">Club</th>
+                    <th scope="col" class="px-6 py-3">Snowmobile</th>
+                    <th scope="col" class="px-6 py-3">Finish Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for result_dict in race_results %}
+                {% for k, result in result_dict.items() %}
+                {% if result.penalty == 0 %}
+
+                <tr class="bg-white border-b hover:bg-gray-50">
+                    <td class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">{{ k + 1 }}</td>
+                    <td class="px-6 py-4">{{ result.name }}</td>
+                    <td class="px-6 py-4">{{ result.driver_club }}</td>
+                    <td class="px-6 py-4">{{ result.snowmobile }}</td>
+                    <td class="px-6 py-4">
+                        {% if result.finishtime > 0 %}
+                            {{ "%0.2f"|format(result.finishtime|float / 1000) }} s
+                        {% else %}
+                            DNF
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <h2 class="text-2xl font-bold mb-4 text-gray-800">Entries with Penalties</h2>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left text-gray-500">
+            <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                <tr>
+                    <th scope="col" class="px-6 py-3">Driver</th>
+                    <th scope="col" class="px-6 py-3">Club</th>
+                    <th scope="col" class="px-6 py-3">Snowmobile</th>
+                    <th scope="col" class="px-6 py-3">Finish Time</th>
+                    <th scope="col" class="px-6 py-3">Penalty</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for result_dict in race_results %}
+                {% for k, result in result_dict.items() %}
+                {% if result.penalty != 0 %}
+                <tr class="bg-white border-b hover:bg-gray-50">
+                    <td class="px-6 py-4">{{ result.name }}</td>
+                    <td class="px-6 py-4">{{ result.driver_club }}</td>
+                    <td class="px-6 py-4">{{ result.snowmobile }}</td>
+                    <td class="px-6 py-4">
+                        {% if result.finishtime > 0 %}
+                            {{ "%0.2f"|format(result.finishtime|float / 1000) }} s
+                        {% else %}
+                            DNF
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-red-600">+{{ result.penalty }} s</td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

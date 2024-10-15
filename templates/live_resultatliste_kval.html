@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% block content %}
+{% with active_page='resultatliste' %}
+    {% include 'toggle_live_switch.html' %}
+{% endwith %}
+
+{% with live_page='kvalifisering' %}
+    {% include 'live_resultatliste_toggle.html' %}
+{% endwith %}
+
+<style>
+
+.center {
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.txt_center {
+    text-align: center;
+}
+
+.hidden {
+    display: none;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+th, td {
+    padding: 0.75rem 0.5rem;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+th {
+    background-color: #f3f4f6;
+    font-weight: 600;
+}
+
+tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.qualify-line {
+    background-color: #2563eb;
+    color: white;
+    font-weight: bold;
+    text-align: center;
+}
+
+.qualify-line td {
+    padding: 0.5rem;
+}
+
+@media (max-width: 670px) {
+    th, td {
+        padding: 0.5rem 0.25rem;
+        font-size: 0.8rem;
+    }
+}
+
+@media (max-width: 480px) {
+    th, td {
+        padding: 0.4rem 0.2rem;
+        font-size: 0.7rem;
+    }
+}
+</style>
+
+<div class="container mx-auto px-4 py-8">
+    <div class="max-w-3xl mx-auto space-y-6">
+        {% set events = {} %}
+        {% for race in race_titles %}
+            {% if race.race_title.endswith('Kvalifisering') %}
+                {% set event_name = ' '.join(race.race_title.split()[:-1]).replace(' - ', '') %}
+                {% if event_name not in events %}
+                    {% set _ = events.update({event_name: {'heats': {}, 'combined': {}}}) %}
+                {% endif %}
+                {% if race.heat not in events[event_name]['heats'] %}
+                    {% set _ = events[event_name]['heats'].update({race.heat: []}) %}
+                {% endif %}
+                {% set _ = events[event_name]['heats'][race.heat].append(race) %}
+                {% if race.driver_name not in events[event_name]['combined'] or (race.finishtime > 0 and race.penalty == 0 and race.finishtime < events[event_name]['combined'][race.driver_name]['finishtime']) %}
+                    {% set _ = events[event_name]['combined'].update({race.driver_name: race}) %}
+                {% endif %}
+            {% endif %}
+        {% endfor %}
+
+        {% for event_name, event_data in events.items() %}
+            <div class="bg-white shadow-md rounded-lg overflow-hidden">
+                <button class="w-full text-left px-6 py-4 bg-gray-100 hover:bg-gray-200 transition-colors duration-200 focus:outline-none flex items-center justify-between" onclick="toggleAccordion('event-{{ event_name|replace(' ', '-') }}')">
+                    <span class="text-xl font-semibold text-gray-800">{{ event_name[:-1] }}</span>
+                    <svg class="w-6 h-6 transform transition-transform duration-200" id="icon-event-{{ event_name|replace(' ', '-') }}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+                <div id="event-{{ event_name|replace(' ', '-') }}" class="">
+                    <!-- Combined Results Table -->
+                    <div class="border-t border-gray-200">
+                        <button class="w-full text-left px-6 py-3 hover:bg-gray-50 transition-colors duration-200 focus:outline-none flex items-center justify-between" onclick="toggleAccordion('combined-{{ event_name|replace(' ', '-') }}')">
+                            <span class="text-lg font-medium text-gray-700 txt_center center">Kombinerte Resultater</span>
+                            <svg class="w-5 h-5 transform transition-transform duration-200" id="icon-combined-{{ event_name|replace(' ', '-') }}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                        <div id="combined-{{ event_name|replace(' ', '-') }}" class="hidden">
+                            <div class="p-4">
+                                <div class="table-wrapper">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Pos</th>
+                                                <th>Driver Name</th>
+                                                <th>Best Time</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% set valid_races = [] %}
+                                            {% set invalid_races = [] %}
+                                            {% for race in event_data['combined'].values() %}
+                                                {% if race.finishtime > 0 and race.penalty == 0 %}
+                                                    {% set _ = valid_races.append(race) %}
+                                                {% else %}
+                                                    {% set _ = invalid_races.append(race) %}
+                                                {% endif %}
+                                            {% endfor %}
+                                            {% set sorted_valid = valid_races|sort(attribute='finishtime') %}
+                                            {% set sorted_invalid = invalid_races|sort(attribute='penalty') %}
+
+                                            {% for race in sorted_valid + sorted_invalid %}
+                                                <tr>
+                                                    <td>{{ loop.index }}</td>
+                                                    <td>{{ race.driver_name }}</td>
+                                                    <td>
+                                                        {% if race.finishtime > 0 and race.penalty == 0 %}
+
+                                                            {{ "{:.3f}".format(race.finishtime / 1000) }}
+                                                        {% elif race.penalty == 1 %}
+                                                            DNS
+                                                        {% elif race.penalty == 2 %}
+                                                            DNF
+                                                        {% elif race.penalty == 3 %}
+                                                            DSQ
+                                                        {% else %}
+                                                            -
+                                                        {% endif %}
+                                                    </td>
+                                                </tr>
+                                                {% set entry = loop.index %}
+                                                {% for kvali in kvali_data %}
+                                                    
+                                                    {% set event_name_new = event_name + " Kvalifisering" %}
+                                                    {% if kvali.race_title == event_name_new %}
+                                                        {% if entry == kvali.kvali_num %}
+                                                            <tr class="qualify-line center">
+                                                                <td colspan="3" class="txt_center">Kvalifisering til Stige</td>
+                                                            </tr>
+                                                        {% endif %}
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Individual Heat Results -->
+                    {% for heat_num, races in event_data['heats'].items() %}
+                        <div class="border-t border-gray-200">
+                            <button class="w-full text-left px-6 py-3 hover:bg-gray-50 transition-colors duration-200 focus:outline-none flex items-center justify-between" onclick="toggleAccordion('heat-{{ event_name|replace(' ', '-') }}-{{ heat_num }}')">
+                                <span class="text-lg font-medium text-gray-700 center">Heat {{ heat_num }}</span>
+                                <svg class="w-5 h-5 transform transition-transform duration-200" id="icon-heat-{{ event_name|replace(' ', '-') }}-{{ heat_num }}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                            <div id="heat-{{ event_name|replace(' ', '-') }}-{{ heat_num }}" class="hidden">
+                                <div class="p-4">
+                                    <div class="table-wrapper">
+                                        <table>
+                                            <thead>
+                                                <tr>
+                                                    <th>Pos</th>
+                                                    <th>Driver Name</th>
+                                                    <th>Time</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% set valid_races = [] %}
+                                                {% set invalid_races = [] %}
+                                                {% for race in races %}
+                                                    {% if race.finishtime > 0 and race.penalty == 0 %}
+                                                        {% set _ = valid_races.append(race) %}
+                                                    {% else %}
+                                                        {% set _ = invalid_races.append(race) %}
+                                                    {% endif %}
+                                                {% endfor %}
+                                                {% set sorted_valid = valid_races|sort(attribute='finishtime') %}
+                                                {% set sorted_invalid = invalid_races|sort(attribute='penalty') %}
+                                                {% for race in sorted_valid + sorted_invalid %}
+                                                    <tr>
+                                                        <td>{{ loop.index }}</td>
+                                                        <td>{{ race.driver_name }}</td>
+                                                        <td>
+                                                            {% if race.finishtime > 0 and race.penalty == 0 %}
+                                                                {{ "{:.3f}".format(race.finishtime / 1000) }}
+                                                            {% elif race.penalty == 1 %}
+                                                                DNS
+                                                            {% elif race.penalty == 2 %}
+                                                                DNF
+                                                            {% elif race.penalty == 3 %}
+                                                                DSQ
+                                                            {% else %}
+                                                                -
+                                                            {% endif %}
+                                                        </td>
+                                                    </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+function toggleAccordion(id) {
+    const content = document.getElementById(id);
+    const icon = document.getElementById('icon-' + id);
+    content.classList.toggle('hidden');
+    icon.classList.toggle('rotate-180');
+}
+</script>
+{% endblock %}

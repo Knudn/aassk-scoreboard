@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+{% block content %}
+{% with active_page='startlist' %}
+    {% include 'toggle_live_switch.html' %}
+{% endwith %}
+
+<style>
+.hidden {
+    display: none;
+}
+
+.center {
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.driver-pair {
+    display: grid;
+    grid-template-columns: minmax(40px, 1fr) 3fr 40px 3fr minmax(40px, 1fr);
+    grid-template-rows: auto auto;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #e5e7eb;
+    font-size: 0.9rem;
+}
+
+.driver-pair:last-child {
+    border-bottom: none;
+}
+
+.driver-info {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.driver-left {
+    grid-column: 2;
+    grid-row: 1;
+    text-align: right;
+    padding-right: 0.25rem;
+}
+
+.driver-right {
+    grid-column: 4;
+    grid-row: 1;
+    text-align: left;
+    padding-left: 0.25rem;
+}
+
+.vehicle-left {
+    grid-column: 2;
+    grid-row: 2;
+    text-align: right;
+    padding-right: 0.25rem;
+    font-size: 0.75rem;
+    color: #666;
+}
+
+.vehicle-right {
+    grid-column: 4;
+    grid-row: 2;
+    text-align: left;
+    padding-left: 0.25rem;
+    font-size: 0.75rem;
+    color: #666;
+}
+
+.pair-number {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    text-align: center;
+    font-weight: bold;
+}
+
+.cid-left {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    text-align: right;
+    padding-right: 0.25rem;
+}
+
+.cid-right {
+    grid-column: 5;
+    grid-row: 1 / span 2;
+    text-align: left;
+    padding-left: 0.25rem;
+}
+
+.cid {
+    font-weight: bold;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+th, td {
+    padding: 0.75rem 0.5rem;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+th {
+    background-color: #f3f4f6;
+    font-weight: 600;
+}
+
+tbody tr:last-child td {
+    border-bottom: none;
+}
+
+@media (max-width: 670px) {
+    .driver-pair {
+        font-size: 0.8rem;
+        grid-template-columns: minmax(30px, 1fr) 3fr 30px 3fr minmax(30px, 1fr);
+        padding: 0.25rem 0;
+    }
+    
+    .pair-number {
+        font-size: 0.7rem;
+    }
+
+    .cid-left {
+        text-align: left;
+    }
+
+    .cid-right {
+        text-align: right;
+    }
+
+    .cid-left, .cid-right {
+        font-size: 0.7rem;
+        padding-right: 0.1rem;
+        padding-left: 0.1rem;
+    }
+
+    .vehicle-left, .vehicle-right {
+        font-size: 0.65rem;
+    }
+
+    th, td {
+        padding: 0.5rem 0.25rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .driver-pair {
+        font-size: 0.7rem;
+        grid-template-columns: minmax(25px, 1fr) 3fr 25px 3fr minmax(25px, 1fr);
+    }
+
+    .pair-number {
+        font-size: 0.6rem;
+    }
+
+    .cid-left, .cid-right {
+        font-size: 0.6rem;
+        padding-right: 0.05rem;
+        padding-left: 0.05rem;
+    }
+
+    .vehicle-left, .vehicle-right {
+        font-size: 0.55rem;
+    }
+}
+</style>
+
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-8 text-center text-gray-800">Startlist</h1>
+
+    <div class="max-w-3xl mx-auto space-y-6">
+        {% for category, races in grouped_data.items() %}
+            <div class="bg-white shadow-md rounded-lg overflow-hidden">
+                <button class="w-full text-left px-6 py-4 bg-gray-100 hover:bg-gray-200 transition-colors duration-200 focus:outline-none flex items-center justify-between" onclick="toggleAccordion('category-{{ category|replace(' ', '-') }}')">
+                    <span class="text-xl font-semibold text-gray-800 center">{{ category }}</span>
+                    <svg class="w-6 h-6 transform transition-transform duration-200" id="icon-category-{{ category|replace(' ', '-') }}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+                <div id="category-{{ category|replace(' ', '-') }}" class="">
+                    {% for race_title, heats in races.items() %}
+                        <div class="border-t border-gray-200">
+                            <button class="w-full text-left px-6 py-3 hover:bg-gray-50 transition-colors duration-200 focus:outline-none flex items-center justify-between" onclick="toggleAccordion('{{ race_title }}-{{ category }}')">
+                                <span class="text-lg font-medium text-gray-700">{{ race_title }}</span>
+                                <svg class="w-5 h-5 transform transition-transform duration-200" id="icon-{{ race_title }}-{{ category }}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                            
+                            <div id="{{ race_title }}-{{ category }}" class="hidden">
+                                {% for heat, entries in heats.items() %}
+                                    <div class="border-t border-gray-200">
+                                        <button class="w-full text-left px-6 py-2 hover:bg-gray-50 transition-colors duration-200 focus:outline-none flex items-center justify-between" onclick="toggleAccordion('{{ race_title }}-{{ heat }}-{{ category }}')">
+                                            <span class="text-md font-medium text-gray-600 center">Run {{ heat }}</span>
+                                            <svg class="w-4 h-4 transform transition-transform duration-200" id="icon-{{ race_title }}-{{ heat }}-{{ category }}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                            </svg>
+                                        </button>
+                                        <div id="{{ race_title }}-{{ heat }}-{{ category }}" class="hidden">
+                                            <div class="p-4">
+                                                {% if category in ['Stige', 'Kvalifisering'] %}
+                                                    {% for i in range(0, entries|length, 2) %}
+                                                        <div class="driver-pair">
+                                                            {% set entry1 = entries[i] %}
+                                                            {% set entry2 = entries[i+1] if i+1 < entries|length else None %}
+                                                            <div class="cid cid-left">{{ entry1.cid }}</div>
+                                                            <div class="driver-info driver-left">{{ entry1.driver_name }}</div>
+                                                            <div class="vehicle-left">{{ entry1.vehicle }}</div>
+                                                            <div class="pair-number">{{ (i // 2) + 1 }}</div>
+                                                            {% if entry2 %}
+                                                                <div class="driver-info driver-right">{{ entry2.driver_name }}</div>
+                                                                <div class="vehicle-right">{{ entry2.vehicle }}</div>
+                                                                <div class="cid cid-right">{{ entry2.cid }}</div>
+                                                            {% else %}
+                                                                <div class="driver-info driver-right">-</div>
+                                                                <div class="vehicle-right">-</div>
+                                                                <div class="cid cid-right">-</div>
+                                                            {% endif %}
+                                                        </div>
+                                                    {% endfor %}
+                                                {% else %}
+                                                    <div class="table-wrapper">
+                                                        <table>
+                                                            <thead>
+                                                                <tr>
+                                                                    <th>#</th>
+                                                                    <th>CID</th>
+                                                                    <th>Driver Name</th>
+                                                                    <th>Vehicle</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {% for entry in entries %}
+                                                                    <tr>
+                                                                        <td>{{ loop.index }}</td>
+                                                                        <td>{{ entry.cid }}</td>
+                                                                        <td>{{ entry.driver_name }}</td>
+                                                                        <td>{{ entry.vehicle }}</td>
+                                                                    </tr>
+                                                                {% endfor %}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+function toggleAccordion(id) {
+    const content = document.getElementById(id);
+    const icon = document.getElementById('icon-' + id);
+    content.classList.toggle('hidden');
+    icon.classList.toggle('rotate-180');
+}
+
+function adjustFontSize() {
+    const driverInfoElements = document.querySelectorAll('.driver-info');
+    driverInfoElements.forEach(element => {
+        let fontSize = parseFloat(window.getComputedStyle(element).fontSize);
+        while (element.scrollWidth > element.offsetWidth && fontSize > 8) {
+            fontSize -= 0.5;
+            element.style.fontSize = `${fontSize}px`;
+        }
+    });
+}
+
+// Run on load and resize
+window.addEventListener('load', adjustFontSize);
+window.addEventListener('resize', adjustFontSize);
+
+// Run when accordions are toggled
+const accordionButtons = document.querySelectorAll('button[onclick^="toggleAccordion"]');
+accordionButtons.forEach(button => {
+    button.addEventListener('click', () => {
+        setTimeout(adjustFontSize, 0);
+    });
+});
+</script>
+{% endblock %}

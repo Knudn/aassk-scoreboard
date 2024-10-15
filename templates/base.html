@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Flask Tailwind App{% endblock %}</title>
+    <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
+    <style>
+        .menu-open .table-container {
+            margin-left: 250px; /* Adjust based on your menu width */
+        }
+        #sidebar {
+            transition: transform 0.3s ease-in-out;
+        }
+        
+        .navline-container {
+            padding-left: 7%;
+            padding-right: 7%;
+            margin-bottom: 1rem;
+        }
+
+        .navline {
+            position: relative;
+            width: 100%;
+            height: 5px;
+            background-color: #ffffffe0;
+            border-radius: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .navline-text {
+            position: absolute;
+            background-color: #1c64f2; /* This should match your sidebar background color */
+            padding: 0 10px;
+            color: #ffffffe0;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .title_scaling {
+            font-size: 1.5rem !important; 
+            font-weight: 400 !important;
+            margin: 0px !important;
+        }
+        .center {
+            margin-left: auto;
+            margin-right: auto;
+        }
+        @media (max-width: 560px) {
+            .title_scaling {
+                font-size: 1.2rem !important;
+                font-weight: 600 !important;
+                margin: 0px !important;
+            }
+        }
+        @media (max-width: 1024px) {
+            #sidebar {
+                transform: translateX(-100%);
+            }
+            #main-content {
+                margin-left: 0;
+                width: 100%;
+            }
+
+        }
+
+        .menu-level-1 { padding-left: 0.5rem; }
+        .menu-level-2 { padding-left: 1.5rem; }
+        .menu-level-3 { padding-left: 2.5rem; }
+        .menu-level-4 { padding-left: 3.5rem; }
+        .menu-item-active { border-left: 4px solid #ffffff; }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body class="h-full bg-gray-100">
+    
+    <div class="flex h-full">
+        <!-- Sidebar -->
+
+        <aside id="sidebar" class="bg-blue-600 text-white w-64 fixed inset-y-0 left-0 z-30 overflow-y-auto">
+            <div class="sticky top-0 bg-blue-700 z-10">
+
+                <div class="flex items-center justify-between p-4">
+                    <div class="flex items-center">
+                        <span class="ml-2 text-xl font-bold">Resultatliste</span>
+                    </div>
+
+                    <button id="closeSidebar" class="md:hidden">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+            </div>
+
+            <a href="/" class="block py-2 px-4 rounded hover:bg-blue-700">Hjem</a>
+            <a href="/" class="block py-2 px-4 rounded hover:bg-blue-700">Pågående løp!</a>
+            <a href="#" class="block py-2 px-4 rounded hover:bg-blue-700">Contact</a>
+
+            <nav id="sidebarNav" class="mt-4">
+                <div class="navline-container">
+                    <div class="navline">
+                        <span class="navline-text">arkiv</span>
+                    </div>
+                </div>
+                {% if events %}
+                    {% set years = {} %}
+                    {% for date, date_events in events.items() %}
+                        {% set year = date[:4] %}
+                        {% if year not in years %}
+                            {% set _ = years.update({year: {}}) %}
+                        {% endif %}
+                        {% for event_name, races in date_events.items() %}
+                            {% if event_name not in years[year] %}
+                                {% set _ = years[year].update({event_name: {}}) %}
+                            {% endif %}
+                            {% for race in races %}
+                                {% set race_parts = race.rsplit(' - ', 1) %}
+                                {% set race_title = race_parts[0].strip() %}
+                                {% set race_type = race_parts[1] if race_parts|length > 1 else 'Other' %}
+
+                                {% if race_type == "Kval" %}
+                                    {% set race_type = "Kvalifisering" %}
+                                {% endif %}
+                                
+                                {% if race_type not in years[year][event_name] %}
+                                    {% set _ = years[year][event_name].update({race_type: []}) %}
+                                {% endif %}
+                                {% set _ = years[year][event_name][race_type].append(race_title) %}
+                            {% endfor %}
+                        {% endfor %}
+                    {% endfor %}
+
+                    {% for year, year_events in years.items() %}
+                        <div class="mb-2">
+                            <button class="menu-level-1 w-full text-left font-bold py-2 px-4 rounded hover:bg-blue-700 flex items-center">
+                                <svg class="w-4 h-4 mr-2 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                                {{ year }}
+                            </button>
+                            <div class="hidden">
+                                {% for event_name, event_types in year_events.items() %}
+                                    <div class="menu-level-2 border-l border-blue-400 ml-4">
+                                        <button class="w-full text-left py-2 px-4 rounded hover:bg-blue-700 flex items-center">
+                                            <svg class="w-3 h-3 mr-2 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                                            {{ event_name }}
+                                        </button>
+                                        <div class="hidden">
+                                            {% for race_type, race_titles in event_types.items() %}
+                                            <div class="menu-level-3 border-l border-blue-400 ml-4 center">
+                                                <a href="/event/{{ year }}/{{ event_name }}/{{ race_type }}" class="w-full text-left py-2 px-4 rounded hover:bg-blue-700 flex items-center block">
+                                                    <svg class="w-2 h-2 mr-2" fill="currentColor" viewBox="0 0 8 8" xmlns="http://www.w3.org/2000/svg"><circle cx="4" cy="4" r="3"></circle></svg>
+                                                    {{ race_type }}
+                                                </a>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-gray-300 px-4 py-2">No events available</p>
+                {% endif %}
+                
+
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <div id="main-content" class="flex-1 flex flex-col">
+            <header class="bg-white shadow-sm z-20">
+                <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex items-center justify-between ">
+                    <button id="openSidebar" class="lg:hidden text-gray-500 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                    </button>
+                    
+                    <div class="flex items-center space-x-4 center"  >
+                        <img src="/static/images/snowmobile_logo.png" alt="Logo" class="w-20 h-15">
+                        <h1 class="text-2xl font-semibold text-gray-800 font-sans title_scaling">Åseral Snøscooterklubb Resultatlister</h1>
+                    </div>
+
+                </div>
+            </header>
+            <main class="flex-1 overflow-y-auto bg-gray-100 p-4">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+        const sidebar = document.getElementById('sidebar');
+        const mainContent = document.getElementById('main-content');
+        const openSidebarButton = document.getElementById('openSidebar');
+        const closeSidebarButton = document.getElementById('closeSidebar');
+
+        function openSidebar() {
+            sidebar.style.transform = 'translateX(0)';
+        }
+
+        function closeSidebar() {
+            sidebar.style.transform = 'translateX(-100%)';
+        }
+
+        function adjustLayoutForScreenSize() {
+            if (window.innerWidth < 1024) {
+                closeSidebar();
+                mainContent.style.marginLeft = '0';
+                mainContent.style.width = '100%';
+            } else {
+                openSidebar();
+                mainContent.style.marginLeft = '16rem';
+                mainContent.style.width = 'calc(100% - 16rem)';
+            }
+        }
+
+        // Set initial state
+        adjustLayoutForScreenSize();
+
+        openSidebarButton.addEventListener('click', openSidebar);
+        closeSidebarButton.addEventListener('click', closeSidebar);
+
+        // Close sidebar when clicking outside of it on mobile
+        document.addEventListener('click', (e) => {
+            if (window.innerWidth < 1024 && !sidebar.contains(e.target) && !openSidebarButton.contains(e.target)) {
+                closeSidebar();
+            }
+        });
+
+        // Toggle menu items
+        document.querySelectorAll('#sidebarNav button').forEach(button => {
+            button.addEventListener('click', function(e) {
+                this.classList.toggle('menu-item-active');
+                const submenu = this.nextElementSibling;
+                submenu.classList.toggle('hidden');
+                const icon = this.querySelector('svg');
+                icon.style.transform = submenu.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(90deg)';
+                e.stopPropagation();
+            });
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', adjustLayoutForScreenSize);
+    });
+    </script>
+    {% block scripts %}
+    {% endblock %}
+</body>
+</html>
