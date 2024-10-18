@@ -9,69 +9,99 @@
 {% endwith %}
 
 <style>
-
-.center {
-    margin-left: auto;
-    margin-right: auto;
-}
-
-.txt_center {
-    text-align: center;
-}
-
-.hidden {
-    display: none;
-}
-
-.table-wrapper {
-    overflow-x: auto;
-}
-
-table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-}
-
-th, td {
-    padding: 0.75rem 0.5rem;
-    text-align: left;
-    border-bottom: 1px solid #e5e7eb;
-}
-
-th {
-    background-color: #f3f4f6;
-    font-weight: 600;
-}
-
-tbody tr:last-child td {
-    border-bottom: none;
-}
-
-.qualify-line {
-    background-color: #2563eb;
-    color: white;
-    font-weight: bold;
-    text-align: center;
-}
-
-.qualify-line td {
-    padding: 0.5rem;
-}
-
-@media (max-width: 670px) {
-    th, td {
-        padding: 0.5rem 0.25rem;
-        font-size: 0.8rem;
+    .center {
+        margin-left: auto;
+        margin-right: auto;
     }
-}
 
-@media (max-width: 480px) {
-    th, td {
-        padding: 0.4rem 0.2rem;
-        font-size: 0.7rem;
+    .txt_center {
+        text-align: center;
     }
-}
+
+    .hidden {
+        display: none;
+    }
+
+    .table-wrapper {
+        overflow-x: auto;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    th, td {
+        padding: 0.75rem 0.5rem;
+        text-align: left;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    th {
+        background-color: #f3f4f6;
+        font-weight: 600;
+    }
+
+    tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .qualify-line {
+        text-align: center;
+        padding: 1px;
+        position: relative;
+        color: aqua;
+    }
+
+    .qualify-line::before,
+    .qualify-line::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        width: 40%;
+        height: 3px;
+        background-color: #1170ff;
+    }
+
+    .qualify-line::before {
+        left: 0;
+    }
+
+    .qualify-line::after {
+        right: 0;
+    }
+
+    .qualify-text {
+        display: inline-block;
+        padding: 0 0.75rem;
+        background-color: white;
+        position: relative;
+        z-index: 1;
+        font-weight: 500;
+        color: #6b7280;
+        font-size: 0.875rem;
+    }
+
+    @media (max-width: 670px) {
+        th, td {
+            padding: 0.5rem 0.25rem;
+            font-size: 0.8rem;
+        }
+        .qualify-text {
+            font-size: 0.8rem;
+        }
+    }
+
+    @media (max-width: 480px) {
+        th, td {
+            padding: 0.4rem 0.2rem;
+            font-size: 0.7rem;
+        }
+        .qualify-text {
+            font-size: 0.75rem;
+        }
+    }
 </style>
 
 <div class="container mx-auto px-4 py-8">
@@ -116,37 +146,56 @@ tbody tr:last-child td {
                                     <table>
                                         <thead>
                                             <tr>
-                                                <th>Pos</th>
-                                                <th>Driver Name</th>
-                                                <th>Best Time</th>
+                                                <th>#</th>
+                                                <th>Navn</th>
+                                                <th>Bestetid</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {% set valid_races = [] %}
-                                            {% set invalid_races = [] %}
-                                            {% for race in event_data['combined'].values() %}
-                                                {% if race.finishtime > 0 and race.penalty == 0 %}
-                                                    {% set _ = valid_races.append(race) %}
+                                            {% set combined_results = {} %}
+                                            {% for heat_num, races in event_data['heats'].items() %}
+                                                {% for race in races %}
+                                                    {% if race.driver_name not in combined_results %}
+                                                        {% set _ = combined_results.update({race.driver_name: {'best_time': None, 'penalty': None}}) %}
+                                                    {% endif %}
+                                                    {% if race.finishtime > 0 and race.penalty == 0 %}
+                                                        {% if combined_results[race.driver_name]['best_time'] is none or race.finishtime < combined_results[race.driver_name]['best_time'] %}
+                                                            {% set _ = combined_results[race.driver_name].update({'best_time': race.finishtime, 'penalty': 0}) %}
+                                                        {% endif %}
+                                                    {% elif combined_results[race.driver_name]['best_time'] is none %}
+                                                        {% set _ = combined_results[race.driver_name].update({'penalty': race.penalty}) %}
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% endfor %}
+
+                                            {% set sorted_results = [] %}
+                                            {% set valid_results = [] %}
+                                            {% set invalid_results = [] %}
+
+                                            {% for driver_name, result in combined_results.items() %}
+                                                {% if result['best_time'] is not none %}
+                                                    {% set _ = valid_results.append((driver_name, result)) %}
                                                 {% else %}
-                                                    {% set _ = invalid_races.append(race) %}
+                                                    {% set _ = invalid_results.append((driver_name, result)) %}
                                                 {% endif %}
                                             {% endfor %}
-                                            {% set sorted_valid = valid_races|sort(attribute='finishtime') %}
-                                            {% set sorted_invalid = invalid_races|sort(attribute='penalty') %}
 
-                                            {% for race in sorted_valid + sorted_invalid %}
+                                            {% set sorted_valid = valid_results|sort(attribute='1.best_time') %}
+                                            {% set sorted_invalid = invalid_results|sort(attribute='1.penalty') %}
+                                            {% set sorted_results = sorted_valid + sorted_invalid %}
+
+                                            {% for driver_name, result in sorted_results %}
                                                 <tr>
                                                     <td>{{ loop.index }}</td>
-                                                    <td>{{ race.driver_name }}</td>
+                                                    <td>{{ driver_name }}</td>
                                                     <td>
-                                                        {% if race.finishtime > 0 and race.penalty == 0 %}
-
-                                                            {{ "{:.3f}".format(race.finishtime / 1000) }}
-                                                        {% elif race.penalty == 1 %}
+                                                        {% if result['best_time'] is not none %}
+                                                            {{ "{:.3f}".format(result['best_time'] / 1000) }}
+                                                        {% elif result['penalty'] == 1 %}
                                                             DNS
-                                                        {% elif race.penalty == 2 %}
+                                                        {% elif result['penalty'] == 2 %}
                                                             DNF
-                                                        {% elif race.penalty == 3 %}
+                                                        {% elif result['penalty'] == 3 %}
                                                             DSQ
                                                         {% else %}
                                                             -
@@ -155,13 +204,14 @@ tbody tr:last-child td {
                                                 </tr>
                                                 {% set entry = loop.index %}
                                                 {% for kvali in kvali_data %}
-                                                    
                                                     {% set event_name_new = event_name + " Kvalifisering" %}
                                                     {% if kvali.race_title == event_name_new %}
                                                         {% if entry == kvali.kvali_num %}
-                                                            <tr class="qualify-line center">
-                                                                <td colspan="3" class="txt_center">Kvalifisering til Stige</td>
-                                                            </tr>
+                                                        <tr>
+                                                            <td colspan="3" class="qualify-line">
+                                                                <span class="qualify-text">Kvalifisering til Stige</span>
+                                                            </td>
+                                                        </tr>
                                                         {% endif %}
                                                     {% endif %}
                                                 {% endfor %}
@@ -172,6 +222,7 @@ tbody tr:last-child td {
                             </div>
                         </div>
                     </div>
+
                     <!-- Individual Heat Results -->
                     {% for heat_num, races in event_data['heats'].items() %}
                         <div class="border-t border-gray-200">
@@ -187,9 +238,9 @@ tbody tr:last-child td {
                                         <table>
                                             <thead>
                                                 <tr>
-                                                    <th>Pos</th>
-                                                    <th>Driver Name</th>
-                                                    <th>Time</th>
+                                                    <th>#</th>
+                                                    <th>Navn</th>
+                                                    <th>Tid</th>
                                                 </tr>
                                             </thead>
                                             <tbody>

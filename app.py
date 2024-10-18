@@ -10,6 +10,10 @@ import jwt
 from functools import wraps
 from contextlib import contextmanager
 from collections import defaultdict
+from typing import Any, Dict, List, Union
+from flask_socketio import SocketIO, emit, join_room
+
+
 
 
 
@@ -28,6 +32,7 @@ app = Flask(__name__)
 #CORS(app)  # This applies CORS to all routes
 app.config['SECRET_KEY'] = '123123'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+socketio = SocketIO(app)
 
 use_auth = True
 
@@ -83,6 +88,9 @@ def process_table_data(table_data):
             table_data[race_title][k] = tmp_dict
     return table_data   
 
+def broadcast_to_room(room_name, event_name, data):
+    socketio.emit(event_name, data, room=room_name, namespace='/websocket')
+
 def get_kvali_data(year, event_name, event_type):
 
     with get_db() as db:
@@ -111,6 +119,75 @@ def get_kvali_data(year, event_name, event_type):
                 heat.sort(key=lambda x: x['finishtime'], reverse=False)
 
         return None, data, str(event_date)
+
+def get_ladder_data_live():
+    from models import RealTimeData
+
+    with get_db() as db:
+        event_data = db.query(RealTimeData).filter(
+            RealTimeData.race_title.ilike(f'%Stige%')).order_by(RealTimeData.race_title).all()
+
+        data = {
+            "Timedata": {},
+            "event_data": []
+        }
+
+        event = ""
+        event_lst = []
+        table_data = {}
+        table_nr = 1
+        event_date = ""
+
+        for entry in event_data:
+            table_nr += 1
+            if entry.race_title not in table_data:
+                table_data[entry.race_title] = {}
+            if entry.heat not in table_data[entry.race_title]:
+                table_nr = 1
+                table_data[entry.race_title][entry.heat] = {}
+
+            table_data[entry.race_title][entry.heat][table_nr] = {
+                "cid": entry.cid,
+                "name": entry.driver_name,
+                "club": entry.driver_club,
+                "event_title": entry.race_title,
+                "race_title": entry.race_title,
+                "snowmobile": entry.vehicle,
+                "run": None,  # This field is not present in RealTimeData
+                "penalty": entry.penalty,
+                "finishtime": entry.finishtime,
+                "heat": entry.heat,
+                "pair": None  # This field is not present in RealTimeData
+            }
+
+        for t in event_data:
+            if event != t.race_title:
+                if data["event_data"]:
+                    event_lst.append(data)
+                
+                data = {
+                    "Timedata": {},
+                    "event_data": []
+                }
+
+                event = t.race_title
+
+            if not data["event_data"]:
+                data["event_data"].extend([t.race_title, 1])
+
+            if t.heat not in data["Timedata"]:
+                data["Timedata"][t.heat] = []
+
+            data["Timedata"][t.heat].append([
+                t.cid, t.driver_name, "", t.driver_club, t.vehicle,
+                t.finishtime, t.penalty, t.inter_1
+            ])
+
+        # Append the last event data if it exists
+        if data["event_data"]:
+            event_lst.append(data)
+
+        return event_lst, table_data, event_date
 
 def get_ladder_data(year, event_name, event_type):
     
@@ -203,42 +280,68 @@ def get_event_race_data():
 
         return formatted_result
 
-
 def check_creds(token):
     if token != app.config['SECRET_KEY']:
         return False
     else:
         return True
 
-
-
 @app.route('/')
 def home():
     from models import RaceData, RealTimeData, RealTimeState
     from sqlalchemy import distinct
 
+    events = get_event_race_data()
+    return render_template('index.html', events=events)
+
+@app.route('/live')
+def live():
+
+    from models import RaceData, RealTimeData, RealTimeState
+    from sqlalchemy import distinct
+
     json_RealTimeData = {}
+    events = get_event_race_data()
     
     with get_db() as db:
-        realtime_state = db.query(RealTimeState).first()
-        
-        if realtime_state:
-            # Access all attributes within the session
-            json_RealTimeData = {
-                "active_driver_1": realtime_state.active_driver_1,
-                "active_driver_2": realtime_state.active_driver_2,
-                "active_race": realtime_state.active_race,
-                "active_heat": realtime_state.active_heat,
-                "active_mode": realtime_state.active_mode
-            }
+        realtime_state = db.query(RealTimeState).first().to_dict()
 
-    events = get_event_race_data()
+        if "stige" in realtime_state["active_race"].lower():
+            return render_template('live_stige.html', events=events)
+        elif "kval" in realtime_state["active_race"].lower():
+            return render_template('live_kvali.html', events=events)
+    
     return render_template('index.html', events=events, json_RealTimeData=json_RealTimeData)
 
 @app.route('/heartbeat')
 def heartbeat():
     return 'Alive'
 
+
+@socketio.on('connect', namespace='/live_data')
+def on_connect():
+    join_room('live_data')
+
+@socketio.on('message', namespace='/live_data')
+def handle_message(message):
+    emit('message', {'data': message}, room='live_data')
+
+@socketio.on('device_connected', namespace='/live_data')
+def handle_device_connected(data):
+    from models import RealTimeState, RealTimeData
+    import json
+
+    json_data = {}
+    
+    with get_db() as db:
+        realtime_state = db.query(RealTimeState).first().to_dict()
+        real_time_data_objects = db.query(RealTimeData).filter(RealTimeData.race_title==realtime_state["active_race"], RealTimeData.heat==realtime_state["active_heat"]).all()
+        race_data = [rdata.to_dict() for rdata in real_time_data_objects]
+    
+    json_data["state"] = realtime_state
+    json_data["driver_data"] = race_data
+
+    emit('server_response', {'data': json.dumps(json_data)}, room=request.sid)
 
 @app.route("/api/update_active_race_status", methods = ['POST'])
 def active_race_status():
@@ -249,6 +352,27 @@ def active_race_status():
     app.config['race_active'] = active_race
 
     return {"race_active": str(app.config['race_active'])}
+
+@app.route("/api/get_current_live_data", methods = ['GET'])
+def get_current_live_data():
+    from models import RealTimeData, RealTimeState
+
+    
+
+    json_data  = {}
+    
+    with get_db() as db:
+        realtime_state = db.query(RealTimeState).first().to_dict()
+
+        real_time_data_objects = db.query(RealTimeData).filter(RealTimeData.race_title==realtime_state["active_race"], RealTimeData.heat==realtime_state["active_heat"]).all()
+        race_data = [rdata.to_dict() for rdata in real_time_data_objects]
+    
+    json_data["state"] = realtime_state
+    json_data["driver_data"] = race_data
+
+
+    return json_data
+
 
 @app.route("/live/startlist", methods=['GET'])
 def live_startlist():
@@ -278,11 +402,13 @@ def live_startlist():
 
         return render_template('live_startlist.html', grouped_data=grouped_data, events=events)
 
+
 @app.route("/live/resultatliste", methods=['GET'])
 def live_resultatliste():
     from models import RealTimeData, RealTimeKvaliData
     from itertools import groupby
     from operator import attrgetter
+    import json
 
     events = get_event_race_data()
 
@@ -309,7 +435,9 @@ def live_resultatliste():
             
     
     if str(data_type).lower() == "stige":
-        return render_template('live_resultatliste_stige.html', events=events, categories=categories)
+        event_data, table_data, event_date = get_ladder_data_live()
+
+        return render_template('live_resultatliste_stige.html', events=events, categories=categories, eventData=event_data)
     
     elif str(data_type).lower() == "kvalifisering":
         
@@ -322,90 +450,21 @@ def live_resultatliste():
 def realtime_data_update():
     from models import RealTimeData
     from models import RealTimeState
+    import json
     
     data = request.json
-    db = next(get_db())
+    with get_db() as db:
     
-    token = data["token"]
+        token = data["token"]
 
-    if use_auth:
-        if not check_creds(token):
-            return jsonify({"error": "Authentication Failed"}), 401
+        if use_auth:
+            if not check_creds(token):
+                return jsonify({"error": "Authentication Failed"}), 401
 
-    race_data = data["data"]
-    
-    
-    if data["single_event"]:
-        race_config = race_data[0]["race_config"]
-
-        race_title = race_config["TITLE_2"]
-        mode = race_config["MODE"]
-        heat = race_config["HEAT"]
-
-        db.query(RealTimeData).filter(RealTimeData.race_title == race_title, RealTimeData.heat == heat).delete()
-        db.commit()
-
-
-    if data["single_event"]:
-        active_driver_1 = None
-        active_driver_2 = None
-
-        race_config = race_data[0]["race_config"]
-
-        race_title = race_config["TITLE_2"]
-        mode = race_config["MODE"]
-        heat = race_config["HEAT"]
-
-        for b in range(1, len(race_data)):
-
-            count = 0
-            for t in race_data[b]["drivers"]:
-                count += 1
-                if t["active"] == True:
-                    if count == 1:
-                        active_driver_1 = t["id"]
-                    elif count == 2:
-                        active_driver_2 = t["id"]
-
-                current_race_data = RealTimeData(
-                    cid=t["id"],
-                    race_title=race_title,
-                    heat=heat,
-                    mode=mode,
-                    driver_name=f"{t['first_name']} {t['last_name']}",
-                    driver_club=t["club"],
-                    finishtime=float(t['time_info']['FINISHTIME']),
-                    inter_1=float(t['time_info']['INTER_1']),
-                    inter_2=float(t['time_info']['INTER_2']),
-                    penalty=float(t['time_info']['PENELTY']),
-                    speed=float(t['time_info']['SPEED']),
-                    vehicle=t['vehicle'],
-                    status=t['status'],
-                )
-                
-                db.add(current_race_data)
-
-        db.commit()
-        if active_driver_1 != None or active_driver_2 != None:
-            db.query(RealTimeState).delete()
-            db.add(RealTimeState(active_driver_1=active_driver_1, active_driver_2=active_driver_2, active_race=race_title, active_heat=heat, active_mode=mode))
-            db.commit()
-
-
-        return jsonify({"message": "Data updated successfully"}), 200
-    else:
-        import json 
-        from models import RealTimeKvaliData
-
-        db.query(RealTimeData).delete()
-        kvali_nr_dict = json.loads(data["kvali_ranking"])
-        db.query(RealTimeKvaliData).delete()
-        for a in kvali_nr_dict:
-            db.add(RealTimeKvaliData(id=a["id"], kvali_num=a["kvalinr"], race_title=a["event"]))
-        db.commit()
-
-
-        for race_data in data["data"]:
+        race_data = data["data"]
+        
+        
+        if data["single_event"]:
             race_config = race_data[0]["race_config"]
 
             race_title = race_config["TITLE_2"]
@@ -415,13 +474,29 @@ def realtime_data_update():
             db.query(RealTimeData).filter(RealTimeData.race_title == race_title, RealTimeData.heat == heat).delete()
             db.commit()
 
+
+        if data["single_event"]:
+            active_driver_1 = None
+            active_driver_2 = None
+
+            race_config = race_data[0]["race_config"]
+
+            race_title = race_config["TITLE_2"]
+            mode = race_config["MODE"]
+            heat = race_config["HEAT"]
+
+            json_data = {}
+
             for b in range(1, len(race_data)):
 
+                count = 0
                 for t in race_data[b]["drivers"]:
-                    try:
-                        status = t["status"]
-                    except:
-                        status = None
+                    count += 1
+                    if t["active"] == True:
+                        if count == 1:
+                            active_driver_1 = t["id"]
+                        elif count == 2:
+                            active_driver_2 = t["id"]
 
                     current_race_data = RealTimeData(
                         cid=t["id"],
@@ -436,13 +511,78 @@ def realtime_data_update():
                         penalty=float(t['time_info']['PENELTY']),
                         speed=float(t['time_info']['SPEED']),
                         vehicle=t['vehicle'],
-                        status=status,
+                        status=t['status'],
                     )
+                    
                     db.add(current_race_data)
+
+            db.commit()
+            if active_driver_1 != None or active_driver_2 != None:
+                db.query(RealTimeState).delete()
+                db.add(RealTimeState(active_driver_1=active_driver_1, active_driver_2=active_driver_2, active_race=race_title, active_heat=heat, active_mode=mode))
+                db.commit()
+
+            with get_db() as db:
+                realtime_state = db.query(RealTimeState).first().to_dict()
+                real_time_data_objects = db.query(RealTimeData).filter(RealTimeData.race_title==realtime_state["active_race"], RealTimeData.heat==realtime_state["active_heat"]).all()
+                race_data = [rdata.to_dict() for rdata in real_time_data_objects]
             
+            json_data["state"] = realtime_state
+            json_data["driver_data"] = race_data
+
+            socketio.emit('message', {'data': json.dumps(json_data)}, room='live_data', namespace='/live_data')
+
+            return jsonify({"message": "Data updated successfully"}), 200
+        else:
+            import json 
+            from models import RealTimeKvaliData
+
+            db.query(RealTimeData).delete()
+            kvali_nr_dict = json.loads(data["kvali_ranking"])
+            db.query(RealTimeKvaliData).delete()
+            for a in kvali_nr_dict:
+                db.add(RealTimeKvaliData(id=a["id"], kvali_num=a["kvalinr"], race_title=a["event"]))
             db.commit()
 
-        return jsonify({"message": "Data updated successfully"}), 200
+
+            for race_data in data["data"]:
+                race_config = race_data[0]["race_config"]
+
+                race_title = race_config["TITLE_2"]
+                mode = race_config["MODE"]
+                heat = race_config["HEAT"]
+
+                db.query(RealTimeData).filter(RealTimeData.race_title == race_title, RealTimeData.heat == heat).delete()
+                db.commit()
+
+                for b in range(1, len(race_data)):
+
+                    for t in race_data[b]["drivers"]:
+                        try:
+                            status = t["status"]
+                        except:
+                            status = None
+
+                        current_race_data = RealTimeData(
+                            cid=t["id"],
+                            race_title=race_title,
+                            heat=heat,
+                            mode=mode,
+                            driver_name=f"{t['first_name']} {t['last_name']}",
+                            driver_club=t["club"],
+                            finishtime=float(t['time_info']['FINISHTIME']),
+                            inter_1=float(t['time_info']['INTER_1']),
+                            inter_2=float(t['time_info']['INTER_2']),
+                            penalty=float(t['time_info']['PENELTY']),
+                            speed=float(t['time_info']['SPEED']),
+                            vehicle=t['vehicle'],
+                            status=status,
+                        )
+                        db.add(current_race_data)
+                
+                db.commit()
+
+            return jsonify({"message": "Data updated successfully"}), 200
 
 
 
@@ -513,7 +653,7 @@ def race_details(event_name: str, race_title: str):
         template = 'race_details_stige.html'
     else:
         template = 'race_details.html'
-    print(date)
+
     return render_template(template, 
                            race_title=race_title,
                            events=events, 
@@ -681,4 +821,4 @@ def upload_data():
 
 if __name__ == '__main__':
     app.config['race_active'] = False
-    app.run(host="192.168.20.218", debug=True)
+    socketio.run(app, debug=True, host="192.168.20.218")

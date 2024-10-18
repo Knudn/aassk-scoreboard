@@ -98,3 +98,12 @@ class RealTimeState(Base):
     active_heat = Column(Integer)
     active_mode = Column(Integer)
 
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'active_driver_1': self.active_driver_1,
+            'active_driver_2': self.active_driver_2,
+            'active_race': self.active_race,
+            'active_heat': self.active_heat,
+            'active_mode': self.active_mode
+        }
