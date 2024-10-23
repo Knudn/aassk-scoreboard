@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap" rel="stylesheet">
     <style>
+        
         .menu-open .table-container {
             margin-left: 250px; /* Adjust based on your menu width */
         }
@@ -86,7 +87,45 @@
         .menu-level-3 { padding-left: 2.5rem; }
         .menu-level-4 { padding-left: 3.5rem; }
         .menu-item-active { border-left: 4px solid #ffffff; }
+
+
     </style>
+
+<style>
+    .animated-border-button {
+        position: relative;
+        background: #1e40af;  /* Dark blue background */
+        border-radius: 8px;
+        z-index: 0;
+    }
+
+    .animated-border-button::before {
+        content: '';
+        position: absolute;
+        top: -2px;
+        left: -2px;
+        right: -2px;
+        bottom: -2px;
+        background: linear-gradient(90deg, #3b82f6, #ef4444, #3b82f6);
+        border-radius: 8px;
+        z-index: -1;
+        animation: rotate 3s linear infinite;
+        background-size: 200% 200%;
+    }
+
+    @keyframes rotate {
+        0% {
+            background-position: 0% 50%;
+        }
+        50% {
+            background-position: 100% 50%;
+        }
+        100% {
+            background-position: 0% 50%;
+        }
+    }
+</style>
+
     {% block head %}{% endblock %}
 </head>
 <body class="h-full bg-gray-100">
@@ -107,11 +146,66 @@
                     </button>
                 </div>
             </div>
+            
+            
 
+            <nav id="sidebarNav">
+                <button class="animated-border-button w-full text-left py-3 pr-4 text-white font-medium flex items-center justify-between group">
+                    <div class="flex items-center">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        </svg>
+                        Bortelid Bakkedrag 2024
+                    </div>
+                    <span class="flex h-2 w-2">
+                        <span class="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-red-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                    </span>
+                </button>
+                <div class="hidden">
+                        <div class="menu-level-1 border-l border-blue-400">
+                            <button class="w-full text-left py-1 px-4 rounded hover:bg-blue-700 flex items-center">
+                                <a href="/live" class="w-full text-left py-1 px-4 rounded hover:bg-blue-700 flex items-center block">
+                                    <svg class="w-2 h-2 mr-2" fill="currentColor" viewBox="0 0 8 8" xmlns="http://www.w3.org/2000/svg"><circle cx="4" cy="4" r="3"></circle></svg>
+                                    Sanntidsdata
+                                </a>
+                            </button>
+                        </div>
+                        <div class="menu-level-1 border-l border-blue-400">
+                            <button class="w-full text-left py-1 px-4 rounded hover:bg-blue-700 flex items-center">
+                                <a href="/live/startlist" class="w-full text-left py-1 px-4 rounded hover:bg-blue-700 flex items-center block">
+                                    <svg class="w-2 h-2 mr-2" fill="currentColor" viewBox="0 0 8 8" xmlns="http://www.w3.org/2000/svg"><circle cx="4" cy="4" r="3"></circle></svg>
+                                    Startlister
+                                </a>
+                            </button>
+                        </div>
+                        <div class="menu-level-1 border-l border-blue-400">
+                            <button class="w-full text-left py-1 px-4 rounded hover:bg-blue-700 flex items-center">
+                                <a href="/live/resultatliste" class="w-full text-left py-1 px-4 rounded hover:bg-blue-700 flex items-center block">
+                                    <svg class="w-2 h-2 mr-2" fill="currentColor" viewBox="0 0 8 8" xmlns="http://www.w3.org/2000/svg"><circle cx="4" cy="4" r="3"></circle></svg>
+                                    Resultatliste
+                                </a>
+                            </button>
+                        </div>
+                        <div class="menu-level-1 border-l border-blue-400">
+                            <button class="w-full text-left py-1 px-4 rounded hover:bg-blue-700 flex items-center">
+                                <a href="/" class="w-full text-left py-1 px-4 rounded hover:bg-blue-700 flex items-center block">
+                                    <svg class="w-2 h-2 mr-2" fill="currentColor" viewBox="0 0 8 8" xmlns="http://www.w3.org/2000/svg"><circle cx="4" cy="4" r="3"></circle></svg>
+                                    Eventer
+                                </a>
+                            </button>
+                        </div>
+                        <div class="menu-level-1 border-l border-blue-400">
+                            <button class="w-full text-left py-1 px-4 rounded hover:bg-blue-700 flex items-center">
+                                <a href="/live/pdf" class="w-full text-left py-1 px-4 rounded hover:bg-blue-700 flex items-center block">
+                                    <svg class="w-2 h-2 mr-2" fill="currentColor" viewBox="0 0 8 8" xmlns="http://www.w3.org/2000/svg"><circle cx="4" cy="4" r="3"></circle></svg>
+                                    Arrangementinfo
+                                </a>
+                            </button>
+                        </div>
+                </div>
+            </nav>
             <a href="/" class="block py-2 px-4 rounded hover:bg-blue-700">Hjem</a>
-            <a href="/" class="block py-2 px-4 rounded hover:bg-blue-700">Pågående løp!</a>
-            <a href="#" class="block py-2 px-4 rounded hover:bg-blue-700">Contact</a>
-
+            <a href="/live" class="block py-2 px-4 rounded hover:bg-blue-700">Kontakt</a>
             <nav id="sidebarNav" class="mt-4">
                 <div class="navline-container">
                     <div class="navline">

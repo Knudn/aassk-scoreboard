@@ -1,3 +1,64 @@
+def get_kvali(event=None):
+    from app import get_db
+    from models import RealTimeData
+    from sqlalchemy import func, case, literal_column, or_
+    from sqlalchemy.orm import aliased
+
+    with get_db() as db:
+        # Subquery to get the best time for each driver
+        subq = (
+            db.query(
+                RealTimeData.driver_name,
+                func.min(case(
+                    (RealTimeData.penalty == 0, case(
+                        (RealTimeData.finishtime > 0, RealTimeData.finishtime),
+                        else_=literal_column('999999')
+                    )),
+                    else_=literal_column('888888')  # Penalty runs
+                )).label('best_time'),
+                func.min(case((RealTimeData.penalty == 0, 1), else_=0)).label('has_valid_run'),
+                func.max(case((RealTimeData.finishtime > 0, 1), else_=0)).label('has_finish_time')
+            )
+            .filter(RealTimeData.race_title == event)
+            .group_by(RealTimeData.driver_name)
+            .subquery()
+        )
+
+        rtd = aliased(RealTimeData)
+
+        # Main query
+        query = (
+            db.query(rtd)
+            .join(subq, rtd.driver_name == subq.c.driver_name)
+            .filter(rtd.race_title == event)
+            .filter(
+                or_(
+                    # Driver has a valid finish time
+                    ((subq.c.has_valid_run == 1) & (subq.c.has_finish_time == 1) &
+                     (rtd.finishtime == subq.c.best_time) & (rtd.penalty == 0)),
+                    # Driver has only penalty runs
+                    ((subq.c.has_valid_run == 0) & (rtd.penalty != 0)),
+                    # Driver hasn't started (all finishtime == 0 and penalty == 0)
+                    ((subq.c.has_valid_run == 1) & (subq.c.has_finish_time == 0))
+                )
+            )
+            .order_by(
+                case(
+                    (subq.c.has_valid_run == 1, 1),
+                    (subq.c.has_valid_run == 0, 2),
+                    else_=3
+                ),
+                rtd.finishtime
+            )
+        )
+
+    data = query.all()
+
+    best_time_results = []
+    for i in data:
+        best_time_results.append(i.to_dict())
+        
+    return best_time_results
 
 
 def fix_names(first_name, last_name, club):

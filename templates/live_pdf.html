@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+{% block content %}
+    {% block extra_head %}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>
+        .pdfviewer-container {
+            position: relative;
+            width: 100%;
+            height: 800px;
+            max-height: 80vh;
+            overflow: hidden;
+            background: white;
+            border-radius: 0.5rem;
+        }
+
+        @media (max-width: 768px) {
+            .pdfviewer-container {
+                height: 500px;
+            }
+        }
+
+        .pdfviewer {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background: white;
+        }
+
+        .pdfviewer .page {
+            margin: 10px auto;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        /* Loading indicator */
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #666;
+        }
+
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #controls-container {
+            position: sticky;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1rem;
+            border-top: 1px solid #eee;
+        }
+    </style>
+    {% endblock %}
+
+    <div class="max-w-6xl mx-auto p-4">
+        {% for title, pdf_path in pdfs.items() %}
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <!-- PDF Title and Download Button -->
+            <div class="flex justify-between items-center mb-4">
+                <h1 class="text-2xl font-bold text-gray-800">{{ title }}</h1>
+                <a href="/{{ pdf_path }}" 
+                   class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors duration-200 flex items-center space-x-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </a>
+            </div>
+            
+            <!-- PDF Viewer Container -->
+            <div class="pdfviewer-container" id="container_{{ loop.index }}">
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                    <div>Loading PDF...</div>
+                </div>
+                <div id="viewer_{{ loop.index }}" class="pdfviewer" data-pdf-path="/{{pdf_path}}">
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% block extra_scripts %}
+    <script>
+        class PDFViewerEnhanced {
+            constructor(containerId, pdfPath) {
+                this.container = document.getElementById(containerId);
+                this.viewer = this.container.querySelector('.pdfviewer');
+                this.pdfPath = pdfPath;
+                this.pdfDoc = null;
+                this.pageNum = 1;
+                this.pageRendering = false;
+                this.pageNumPending = null;
+                this.scale = 1.0;
+                this.canvas = document.createElement('canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.viewer.appendChild(this.canvas);
+
+                this.init();
+            }
+
+            async init() {
+                try {
+                    // Load the PDF
+                    const loadingTask = pdfjsLib.getDocument(this.pdfPath);
+                    this.pdfDoc = await loadingTask.promise;
+                    
+                    // Remove loading indicator
+                    const loadingEl = this.container.querySelector('.loading');
+                    if (loadingEl) loadingEl.remove();
+
+                    // Initial page render
+                    this.renderPage(1);
+
+                    // Add page navigation controls
+                    this.addControls();
+                } catch (error) {
+                    console.error('Error loading PDF:', error);
+                    this.viewer.innerHTML = '<div class="p-4 text-red-500">Error loading PDF</div>';
+                }
+            }
+
+            async renderPage(num) {
+                this.pageRendering = true;
+                const page = await this.pdfDoc.getPage(num);
+                
+                // Calculate scale to fit width
+                const viewport = page.getViewport({ scale: 1 });
+                const containerWidth = this.viewer.clientWidth - 20; // 20px for margins
+                this.scale = containerWidth / viewport.width;
+                const scaledViewport = page.getViewport({ scale: this.scale });
+
+                // Set canvas dimensions
+                this.canvas.width = scaledViewport.width;
+                this.canvas.height = scaledViewport.height;
+
+                // Render PDF page
+                const renderContext = {
+                    canvasContext: this.ctx,
+                    viewport: scaledViewport
+                };
+
+                try {
+                    await page.render(renderContext).promise;
+                    this.pageRendering = false;
+                    this.pageNum = num;
+                    this.updatePageInfo();
+
+                    if (this.pageNumPending !== null) {
+                        this.renderPage(this.pageNumPending);
+                        this.pageNumPending = null;
+                    }
+                } catch (error) {
+                    console.error('Error rendering page:', error);
+                    this.pageRendering = false;
+                }
+            }
+
+            queueRenderPage(num) {
+                if (this.pageRendering) {
+                    this.pageNumPending = num;
+                } else {
+                    this.renderPage(num);
+                }
+            }
+
+            addControls() {
+                const controls = document.createElement('div');
+                controls.id = 'controls-container';
+                controls.innerHTML = `
+                    <button class="prev bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">Forrige</button>
+                    <span class="text-gray-700">Page <span class="page-num">${this.pageNum}</span> of <span class="page-count">${this.pdfDoc.numPages}</span></span>
+                    <button class="next bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">Neste</button>
+                `;
+
+                controls.querySelector('.prev').onclick = () => {
+                    if (this.pageNum <= 1) return;
+                    this.queueRenderPage(this.pageNum - 1);
+                };
+
+                controls.querySelector('.next').onclick = () => {
+                    if (this.pageNum >= this.pdfDoc.numPages) return;
+                    this.queueRenderPage(this.pageNum + 1);
+                };
+
+                this.container.appendChild(controls);
+            }
+
+            updatePageInfo() {
+                const pageNum = this.container.querySelector('.page-num');
+                if (pageNum) pageNum.textContent = this.pageNum;
+            }
+
+            handleResize() {
+                if (this.pdfDoc) {
+                    this.renderPage(this.pageNum);
+                }
+            }
+        }
+
+        // Initialize viewers
+        window.addEventListener('load', () => {
+            document.querySelectorAll('[id^="container_"]').forEach((container) => {
+                const viewerId = container.querySelector('.pdfviewer').id;
+                const pdfPath = container.querySelector('.pdfviewer').dataset.pdfPath;
+                new PDFViewerEnhanced(container.id, pdfPath);
+            });
+        });
+
+        // Handle window resizing
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                document.querySelectorAll('[id^="container_"]').forEach((container) => {
+                    const viewer = container.querySelector('.pdfviewer').__viewer;
+                    if (viewer) {
+                        viewer.handleResize();
+                    }
+                });
+            }, 200);
+        });
+    </script>
+    {% endblock %}
+{% endblock %}

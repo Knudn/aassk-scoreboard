@@ -1,6 +1,5 @@
-from sqlalchemy import Column, Integer, String, Date, Float
+from sqlalchemy import Column, Integer, String, Date, Float, Boolean
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.sql import func
 
 Base = declarative_base()
 
@@ -24,16 +23,9 @@ class RaceData(Base):
     penalty = Column(Float)
     speed = Column(Float)
     vehicle = Column(String)
-    status = Column(Integer)
-    
 
     def __repr__(self):
         return f"<RaceData(id={self.id}, event_title='{self.event_title}', driver_name='{self.driver_name}')>"
-    
-from sqlalchemy import Column, Integer, String, Float
-from sqlalchemy.ext.declarative import declarative_base
-
-Base = declarative_base()
 
 class RealTimeData(Base):
     __tablename__ = 'real_time_data'
@@ -53,26 +45,11 @@ class RealTimeData(Base):
     vehicle = Column(String)
     
     def __repr__(self):
-        return f"<RealTimeData(id={self.id}, event_title='{self.race_title}', driver_name='{self.driver_name}')>"
+        return f"<RealTimeData(id={self.id}, race_title='{self.race_title}', driver_name='{self.driver_name}')>"
     
     def to_dict(self):
-        return {
-            'id': self.id,
-            'cid': self.cid,
-            'race_title': self.race_title,
-            'heat': self.heat,
-            'mode': self.mode,
-            'driver_name': self.driver_name,
-            'driver_club': self.driver_club,
-            'status': self.status,
-            'finishtime': self.finishtime,
-            'inter_1': self.inter_1,
-            'inter_2': self.inter_2,
-            'penalty': self.penalty,
-            'speed': self.speed,
-            'vehicle': self.vehicle
-        }
-    
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
 class RealTimeKvaliData(Base):
     __tablename__ = 'real_time_kvali_data'
     id = Column(Integer, primary_key=True)
@@ -83,11 +60,7 @@ class RealTimeKvaliData(Base):
         return f"<RealTimeKvaliData(id={self.id}, kvali_num='{self.kvali_num}', race_title='{self.race_title}')>"
     
     def to_dict(self):
-        return {
-            'id': self.id,
-            'kvali_num': self.kvali_num,
-            'race_title': self.race_title
-        }
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
 class RealTimeState(Base):
     __tablename__ = 'real_time_state'
@@ -97,13 +70,7 @@ class RealTimeState(Base):
     active_race = Column(String)
     active_heat = Column(Integer)
     active_mode = Column(Integer)
+    active_race_state = Column(Boolean, default=False)
 
     def to_dict(self):
-        return {
-            'id': self.id,
-            'active_driver_1': self.active_driver_1,
-            'active_driver_2': self.active_driver_2,
-            'active_race': self.active_race,
-            'active_heat': self.active_heat,
-            'active_mode': self.active_mode
-        }
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
