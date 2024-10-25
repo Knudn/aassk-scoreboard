@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, Response, current_app
+from flask import Flask, render_template, request, jsonify, Response, current_app, redirect, session, url_for, flash
 from sqlalchemy import create_engine, and_, text, func
 from sqlalchemy.orm import sessionmaker, Session
 from queries import *
@@ -33,8 +33,19 @@ socketio = SocketIO(app)
 
 use_auth = True
 
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "admin"
+
 
 Base.metadata.create_all(bind=engine)
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect("/login")
+        return f(*args, **kwargs)
+    return decorated_function
 
 def init_db():
     Base.metadata.create_all(bind=engine)
@@ -633,6 +644,27 @@ def live_pdf():
     }
 
     return render_template('live_pdf.html', pdfs=pdfs, events=events)
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        
+        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+            session['user_id'] = 1
+            return redirect("/admin")
+            
+        flash('Invalid credentials')
+        return redirect("/login")
+        
+    return render_template('login.html')
+
+@app.route('/admin', methods=['GET'])
+@login_required
+def admin_page():
+        
+    return render_template('admin.html')
 
 
 @app.route('/event/<event_name>/race/<race_title>')

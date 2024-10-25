@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Admin Panel - Åseral Snøscooterklubb{% endblock %}</title>
+    <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap" rel="stylesheet">
+    <style>
+        .menu-open .table-container {
+            margin-left: 250px;
+        }
+        #sidebar {
+            transition: transform 0.3s ease-in-out;
+        }
+        
+        .navline-container {
+            padding-left: 7%;
+            padding-right: 7%;
+            margin-bottom: 1rem;
+        }
+
+        .navline {
+            position: relative;
+            width: 100%;
+            height: 5px;
+            background-color: #ffffffe0;
+            border-radius: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .navline-text {
+            position: absolute;
+            background-color: #1c64f2;
+            padding: 0 10px;
+            color: #ffffffe0;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .title_scaling {
+            font-size: 1.5rem !important; 
+            font-weight: 400 !important;
+            margin: 0px !important;
+        }
+        .center {
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        @media (max-width: 560px) {
+            .title_scaling {
+                font-size: 1.1rem !important;
+                font-weight: 600 !important;
+                margin: 0px !important;
+            }
+        }
+
+        @media (max-width: 1024px) {
+            #sidebar {
+                transform: translateX(-100%);
+            }
+            #main-content {
+                margin-left: 0;
+                width: 100%;
+            }
+            .site_padding_p4 {
+                padding: 0px;
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .site_padding_p4 {
+                padding: 1rem;
+            }
+        }
+
+        .menu-level-1 { padding-left: 0.5rem; }
+        .menu-level-2 { padding-left: 1.5rem; }
+        .menu-level-3 { padding-left: 2.5rem; }
+        .menu-level-4 { padding-left: 3.5rem; }
+        .menu-item-active { border-left: 4px solid #ffffff; }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body class="h-full bg-gray-100">
+    <div class="flex h-full">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="bg-blue-600 text-white w-64 fixed inset-y-0 left-0 z-30 overflow-y-auto">
+            <div class="sticky top-0 bg-blue-700 z-10">
+                <div class="flex items-center justify-between p-4">
+                    <div class="flex items-center">
+                        <span class="ml-2 text-xl font-bold">Admin Panel</span>
+                    </div>
+                    <button id="closeSidebar" class="md:hidden">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Admin Navigation -->
+            <nav id="sidebarNav" class="py-4">
+                <!-- Main Admin Functions -->
+                <div class="mb-6">
+                    <a href="/admin" class="block px-4 py-2 text-white hover:bg-blue-700">Dashboard</a>
+                    <a href="/admin/events" class="block px-4 py-2 text-white hover:bg-blue-700">Events</a>
+                    <a href="/admin/participants" class="block px-4 py-2 text-white hover:bg-blue-700">Deltakere</a>
+                    <a href="/admin/results" class="block px-4 py-2 text-white hover:bg-blue-700">Resultater</a>
+                </div>
+
+                <!-- Quick Actions Section -->
+                <div class="navline-container">
+                    <div class="navline">
+                        <span class="navline-text">Hurtigvalg</span>
+                    </div>
+                </div>
+                <div class="mb-6">
+                    <a href="/admin/new-event" class="block px-4 py-2 text-white hover:bg-blue-700">Nytt Event</a>
+                    <a href="/admin/import" class="block px-4 py-2 text-white hover:bg-blue-700">Importer Data</a>
+                    <a href="/admin/export" class="block px-4 py-2 text-white hover:bg-blue-700">Eksporter Data</a>
+                </div>
+
+                <!-- Settings Section -->
+                <div class="navline-container">
+                    <div class="navline">
+                        <span class="navline-text">System</span>
+                    </div>
+                </div>
+                <div>
+                    <a href="/admin/settings" class="block px-4 py-2 text-white hover:bg-blue-700">Innstillinger</a>
+                    <a href="/admin/users" class="block px-4 py-2 text-white hover:bg-blue-700">Brukere</a>
+                    <a href="/admin/logs" class="block px-4 py-2 text-white hover:bg-blue-700">Logger</a>
+                    <a href="/logout" class="block px-4 py-2 text-white hover:bg-blue-700">Logg ut</a>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <div id="main-content" class="flex-1 flex flex-col">
+            <header class="bg-white shadow-sm z-20">
+                <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+                    <button id="openSidebar" class="lg:hidden text-gray-500 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                        </svg>
+                    </button>
+                    
+                    <div class="flex items-center space-x-4 center">
+                        <img src="/static/images/snowmobile_logo.png" alt="Logo" class="w-20 h-15">
+                        <h1 class="text-2xl font-semibold text-gray-800 font-sans title_scaling">Admin - Åseral Snøscooterklubb</h1>
+                    </div>
+                </div>
+            </header>
+
+            <main class="flex-1 overflow-y-auto bg-gray-100 site_padding_p4">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('main-content');
+            const openSidebarButton = document.getElementById('openSidebar');
+            const closeSidebarButton = document.getElementById('closeSidebar');
+
+            function openSidebar() {
+                sidebar.style.transform = 'translateX(0)';
+            }
+
+            function closeSidebar() {
+                sidebar.style.transform = 'translateX(-100%)';
+            }
+
+            function adjustLayoutForScreenSize() {
+                if (window.innerWidth < 1024) {
+                    closeSidebar();
+                    mainContent.style.marginLeft = '0';
+                    mainContent.style.width = '100%';
+                } else {
+                    openSidebar();
+                    mainContent.style.marginLeft = '16rem';
+                    mainContent.style.width = 'calc(100% - 16rem)';
+                }
+            }
+
+            // Set initial state
+            adjustLayoutForScreenSize();
+
+            openSidebarButton.addEventListener('click', openSidebar);
+            closeSidebarButton.addEventListener('click', closeSidebar);
+
+            // Close sidebar when clicking outside of it on mobile
+            document.addEventListener('click', (e) => {
+                if (window.innerWidth < 1024 && !sidebar.contains(e.target) && !openSidebarButton.contains(e.target)) {
+                    closeSidebar();
+                }
+            });
+
+            // Handle window resize
+            window.addEventListener('resize', adjustLayoutForScreenSize);
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
