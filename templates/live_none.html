@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+{% with active_page='live' %}
+    {% include 'toggle_live_switch.html' %}
+{% endwith %}
+<style>
+        .center {
+        margin-left: auto;
+        margin-right: auto;
+    }
+    .txt_center {
+        text-align: center;
+        font-size: larger;
+    }
+</style>
+<div style="margin-top: 150px;" >
+    <div class="container mx-auto px-4 py-8 txt_center">
+    <h1>LØP HAR IKKE STARTET</h1>
+    <h3>Refresh siden når løpet har startet</h3>
+
+    </div>
+</div>
+
+
+{% endblock %}

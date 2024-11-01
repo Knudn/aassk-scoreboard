@@ -14,6 +14,11 @@
     margin-right: auto;
 }
 
+.txt_center {
+        text-align: center;
+        font-size: larger;
+    }
+
 .driver-pair {
     display: grid;
     grid-template-columns: minmax(40px, 1fr) 3fr 40px 3fr minmax(40px, 1fr);
@@ -171,6 +176,14 @@ tbody tr:last-child td {
     }
 }
 </style>
+
+{% if grouped_data == {} %}
+<div style="margin-top: 150px;" >
+    <div class="container mx-auto px-4 py-8 txt_center">
+    <h1>STARTLISTER IKKE KLARE</h1>
+    </div>
+</div>
+{% endif %}
 
 <div class="container mx-auto px-4 py-8">
     <div class="max-w-3xl mx-auto space-y-6">

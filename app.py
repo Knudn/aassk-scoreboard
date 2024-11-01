@@ -62,7 +62,8 @@ def get_db():
     finally:
         db.close()
 
-
+def is_user_logged_in():
+    return 'user_id' in session
 
 def reorder_heat_results(heat_data):
     items = list(heat_data.items())
@@ -270,6 +271,7 @@ def get_ladder_data(year, event_name, event_type):
         return event_lst, reordered_table_data, event_date
     
 def get_event_race_data():
+    from models import RealTimeState
 
     with get_db() as db:
         event_data = db.query(
@@ -278,6 +280,16 @@ def get_event_race_data():
             RaceData.race_title
         ).order_by(RaceData.date).all()
 
+        live_state = db.query(RealTimeState).first()
+
+        if live_state.active_race_state == 0:
+            live_state_name = "NONE"
+        elif live_state.active_race_state == 1 and is_user_logged_in():
+            live_state_name = live_state.active_event
+        elif live_state.active_race_state == 2:
+            live_state_name = live_state.active_event
+        else:
+            live_state_name = "NONE"
         
         result = defaultdict(lambda: defaultdict(list))
 
@@ -290,8 +302,8 @@ def get_event_race_data():
                 event_title: list(set(race_titles))
                 for event_title, race_titles in events.items()
             }
-
-        return formatted_result
+        
+        return formatted_result, live_state_name
 
 def check_creds(token):
     if token != app.config['SECRET_KEY']:
@@ -304,8 +316,9 @@ def home():
     from models import RaceData, RealTimeData, RealTimeState
     from sqlalchemy import distinct
 
-    events = get_event_race_data()
-    return render_template('index.html', events=events)
+    events, live_event_state = get_event_race_data()
+
+    return render_template('index.html', events=events, live_event_state=live_event_state)
 
 @app.route('/live')
 def live():
@@ -313,8 +326,10 @@ def live():
     from sqlalchemy import distinct
 
     json_RealTimeData = {}
-    events = get_event_race_data()
-    
+    events, live_event_state = get_event_race_data()
+
+
+
     with get_db() as db:
         realtime_state = db.query(RealTimeState).first()
         
@@ -323,25 +338,30 @@ def live():
             default_state = RealTimeState(
                 active_driver_1=None,
                 active_driver_2=None,
-                active_race="",
+                active_race="None",
                 active_heat=1,
                 active_mode=1,
-                active_race_state=False
+                active_event = "None",
+                active_race_state=0
             )
             db.add(default_state)
             db.commit()
             realtime_state = default_state
+        
 
         realtime_state_dict = realtime_state.to_dict()
 
-        print(realtime_state_dict["active_race"].lower())
+        active_event = realtime_state_dict["active_event"]
+        event_state = realtime_state_dict["active_race_state"]
+        if realtime_state_dict["active_race"] == None:
+            return render_template('live_none.html', events=events, live_event_state=live_event_state)
 
-        if "stige" in realtime_state_dict["active_race"].lower():
-            return render_template('live_stige.html', events=events)
+        elif "stige" in realtime_state_dict["active_race"].lower():
+            return render_template('live_stige.html', events=events, live_event_state=live_event_state)
         elif "kval" in realtime_state_dict["active_race"].lower():
-            return render_template('live_kvali.html', events=events)
+            return render_template('live_kvali.html', events=events, live_event_state=live_event_state)
     
-    return render_template('index.html', events=events, json_RealTimeData=json_RealTimeData)
+    return render_template('index.html', events=events, json_RealTimeData=json_RealTimeData, active_event=active_event, event_state=event_state, live_event_state=live_event_state)
 
 @app.route('/heartbeat')
 def heartbeat():
@@ -376,7 +396,11 @@ def handle_device_connected(data):
             json_data["state"] = realtime_state
             json_data["driver_data"] = race_data
             json_data["kvali_data"] = kvali_data
-            json_data["kvali_crit"] = kvali__crit_data[0]
+
+            try:
+                json_data["kvali_crit"] = kvali__crit_data[0]
+            except:
+                json_data["kvali_crit"] = 99
 
             emit('server_response', {'data': json.dumps(json_data)}, room=request.sid)
         else:
@@ -419,7 +443,8 @@ def live_startlist():
     from itertools import groupby
     from operator import attrgetter
 
-    events = get_event_race_data()
+    events, live_event_state = get_event_race_data()
+
     with get_db() as db:
         RealTimeData_entries = db.query(RealTimeData).order_by(RealTimeData.race_title, RealTimeData.heat).all()
     
@@ -438,7 +463,7 @@ def live_startlist():
             
             grouped_data[category][race_title][entry.heat].append(entry)
 
-        return render_template('live_startlist.html', grouped_data=grouped_data, events=events)
+        return render_template('live_startlist.html', grouped_data=grouped_data, events=events,live_event_state=live_event_state)
 
 
 @app.route("/live/resultatliste", methods=['GET'])
@@ -448,7 +473,7 @@ def live_resultatliste():
     from operator import attrgetter
     import json
 
-    events = get_event_race_data()
+    events, live_event_state = get_event_race_data()
 
     data_type = request.args.get('type')
 
@@ -470,18 +495,20 @@ def live_resultatliste():
         title = title[-1]
         if title not in categories:
             categories.append(title)
-            
+    
+    if categories == []:
+         return render_template('live_resultatliste_none.html', events=events, categories=categories)
     
     if str(data_type).lower() == "stige":
         event_data, table_data, event_date = get_ladder_data_live()
 
-        return render_template('live_resultatliste_stige.html', events=events, categories=categories, eventData=event_data)
+        return render_template('live_resultatliste_stige.html', events=events, categories=categories, eventData=event_data, live_event_state=live_event_state)
     
     elif str(data_type).lower() == "kvalifisering":
         
-        return render_template('live_resultatliste_kval.html', events=events, categories=categories, race_titles=race_titles, kvali_data=kvali_data_dicts)
+        return render_template('live_resultatliste_kval.html', events=events, categories=categories, race_titles=race_titles, kvali_data=kvali_data_dicts, live_event_state=live_event_state)
     else:
-        return render_template('live_resultatliste.html', events=events, categories=categories)
+        return render_template('live_resultatliste.html', events=events, categories=categories, live_event_state=live_event_state)
 
 
 @app.route("/api/realtime_data", methods=['POST'])
@@ -572,7 +599,10 @@ def realtime_data_update():
                 json_data["state"] = realtime_state
                 json_data["driver_data"] = race_data
                 json_data["kvali_data"] = kvali_data
-                json_data["kvali_crit"] = kvali__crit_data[0]
+                try:
+                    json_data["kvali_crit"] = kvali__crit_data[0]
+                except:
+                    json_data["kvali_crit"] = 99
                 
                 socketio.emit('message', {'data': json.dumps(json_data)}, room='live_data', namespace='/live_data')
 
@@ -625,25 +655,32 @@ def event_overview(year, event_name, race_type):
     if str(race_type).lower() == "kval":
         race_type = "kvalifisering"
 
-    events = get_event_race_data()
+    events, live_event_state = get_event_race_data()
 
     if str(race_type).lower() == "kvalifisering":
         event_data, table_data, event_date = get_kvali_data(year, event_name, race_type)
-        return render_template('event_overview_kval.html', events=events, event_name=event_name, table_data=table_data, event_date=event_date)
+        return render_template('event_overview_kval.html', events=events, event_name=event_name, table_data=table_data, event_date=event_date, live_event_state=live_event_state)
     elif str(race_type).lower() == "stige":
         event_data, table_data, event_date = get_ladder_data(year, event_name, race_type)
-        return render_template('event_overview_stige.html', events=events, event_name=event_name, event_data=event_data, table_data=table_data, event_date=event_date)
+        return render_template('event_overview_stige.html', events=events, event_name=event_name, event_data=event_data, table_data=table_data, event_date=event_date, live_event_state=live_event_state)
 
 @app.route('/live/pdf')
 def live_pdf():
-    events = get_event_race_data()
+    from models import PDFS
+    
+    PDF_PATH = "static/uploads/pdfs"
+    pdfs = {}
+    with get_db() as db:
+        pdfs_db = db.query(PDFS).all()
+    
+        for a in pdfs_db:
+            pdfs[a.file_title] = f"{PDF_PATH}/{a.file_name}"
 
-    pdfs = {
-        "LORA DOCUMENTATION": "static/pdfs/LoRa_AT_Command.pdf",
-        "RANDOM DATA TING": "static/pdfs/LoRa_AT_Command.pdf"
-    }
+    events, live_event_state = get_event_race_data()
 
-    return render_template('live_pdf.html', pdfs=pdfs, events=events)
+    return render_template('live_pdf.html', pdfs=pdfs, events=events, live_event_state=live_event_state)
+
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -666,10 +703,147 @@ def admin_page():
         
     return render_template('admin.html')
 
+@app.route('/admin/admin_live_config', methods=['GET', 'POST'])
+@login_required
+def admin_live_config():
+    from app import get_db
+    from models import RealTimeData, RealTimeState, RealTimeKvaliData, PDFS
+    import os
+    from werkzeug.utils import secure_filename
+    from datetime import datetime
 
+    UPLOAD_FOLDER = 'static/uploads/pdfs'
+    ALLOWED_EXTENSIONS = {'pdf'}
+
+    def allowed_file(filename):
+        return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+    if request.method == 'POST':
+        data = request.form
+        event_name = data.get("eventName")
+        visibility_state = data.get("visibilityState")
+        clear_data = bool(data.get("remove_current_data"))
+
+        if clear_data:
+            with get_db() as db:
+                db.query(RealTimeData).delete()
+                db.query(RealTimeKvaliData).delete()
+                db.query(RealTimeState).delete()
+                db.commit()
+
+        existing_pdfs = request.form.getlist('existing_pdfs[]')
+        
+        if existing_pdfs == []:
+            with get_db() as db:
+                realtime_state = db.query(PDFS).first()
+                if realtime_state:
+                    db.query(PDFS).delete()
+                    db.commit()
+
+        pdf_names = request.form.getlist('pdf_names[]')
+        existing_pdf_data = dict(zip(existing_pdfs, pdf_names))
+
+        new_files = request.files.getlist('pdf_files')
+        new_pdf_names = request.form.getlist('new_pdf_names[]')
+
+        with get_db() as db:
+            realtime_state = db.query(RealTimeState).first()
+            if not realtime_state:
+                realtime_state = RealTimeState()
+                db.add(realtime_state)
+
+            realtime_state.active_event = event_name 
+            realtime_state.active_race_state = int(visibility_state)
+
+            for pdf_id, display_name in existing_pdf_data.items():
+                pdf = db.query(PDFS).filter_by(id=int(pdf_id)).first()
+                if pdf:
+                    pdf.file_title = display_name
+
+            for file, display_name in zip(new_files, new_pdf_names):
+                if file and allowed_file(file.filename):
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    original_filename = secure_filename(file.filename)
+                    filename = f"{timestamp}_{original_filename}"
+                    
+                    file_path = os.path.join(UPLOAD_FOLDER, filename)
+                    file.save(file_path)
+                    
+                    new_pdf = PDFS(
+                        file_name=filename,
+                        file_title=display_name
+                    )
+                    db.add(new_pdf)
+
+            if existing_pdfs:
+                existing_pdf_ids = [int(pdf_id) for pdf_id in existing_pdfs]
+                pdfs_to_delete = db.query(PDFS).filter(
+                    PDFS.id.notin_(existing_pdf_ids)
+                ).all()
+                
+                for pdf in pdfs_to_delete:
+                    file_path = os.path.join(UPLOAD_FOLDER, pdf.file_name)
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                
+                db.query(PDFS).filter(
+                    PDFS.id.notin_(existing_pdf_ids)
+                ).delete(synchronize_session=False)
+
+            db.commit()
+
+        return redirect(url_for('admin_live_config'))
+
+    with get_db() as db:
+        realtime_state = db.query(RealTimeState).first()
+        existing_pdfs = db.query(PDFS).all()
+        
+        event = {
+            'name': realtime_state.active_event if realtime_state else '',
+            'visibility': realtime_state.active_race_state if realtime_state else 0
+        }
+        
+        pdf_list = [
+            {
+                'id': pdf.id,
+                'filename': pdf.file_name,
+                'display_name': pdf.file_title
+            }
+            for pdf in existing_pdfs
+        ]
+
+        return render_template(
+            'admin_live_config.html',  # Make sure this template name matches your actual template
+            event=event,
+            existing_pdfs=pdf_list
+        )
+
+    with get_db() as db:
+        realtime_state = db.query(RealTimeState).first()
+        existing_pdfs = db.query(RealTimeData).all()
+        
+        if realtime_state:
+            realtime_state = realtime_state.to_dict()
+        
+        pdf_list = [
+            {
+                'id': pdf.id,
+                'filename': os.path.basename(pdf.path) if hasattr(pdf, 'path') else '',
+                'display_name': pdf.name if hasattr(pdf, 'name') else ''
+            }
+            for pdf in existing_pdfs
+        ]
+
+    return render_template(
+        'admin_live_config.html',
+        event=realtime_state,
+        existing_pdfs=pdf_list
+    )
 @app.route('/event/<event_name>/race/<race_title>')
 def race_details(event_name: str, race_title: str):
-    events = get_event_race_data()
+    events, live_event_state = get_event_race_data()
     date = event_name[:4]
     date_full = event_name[:10]
     event_name_formatted = event_name[5:]
@@ -728,7 +902,8 @@ def race_details(event_name: str, race_title: str):
                            date=date,
                            heats=heats,
                            table_data=table_data,
-                           date_full=date)
+                           date_full=date,
+                           live_event_state=live_event_state)
 
 @app.route("/sql_test/")
 def sql_test():
@@ -794,7 +969,6 @@ def get_drivers():
         
         response = jsonify(results_list)
         
-        # Debug: Print out all headers
         print("Response Headers:")
         for header, value in response.headers.items():
             print(f"{header}: {value}")
@@ -822,16 +996,14 @@ def upload_data():
             mode = int(event_config['MODE'])
             heat = int(event_config['HEAT'])
 
-            for race in event[1:]:  # Skip the first item which is race_config
+            for race in event[1:]:
                 for k, driver in enumerate(race['drivers']):
-                    #driver_name, driver_club = fix_names(driver['first_name'], driver['last_name'], driver['club'])
                     driver_name = driver['first_name'] + " " + driver['last_name']
                     driver_club = driver['club']
 
                     c_id = driver["id"]
                     pair_id = (k + 1)
 
-                    # Check if an identical entry already exists
                     existing_entry = db.query(RaceData).filter_by(
                         date=event_date,
                         event_title=event_title,
@@ -842,7 +1014,6 @@ def upload_data():
                     ).first()
 
                     if existing_entry:
-                        # Update the existing entry
                         existing_entry.driver_club = driver_club
                         existing_entry.finishtime = float(driver['time_info']['FINISHTIME'])
                         existing_entry.inter_1 = float(driver['time_info']['INTER_1'])
@@ -852,7 +1023,6 @@ def upload_data():
                         existing_entry.vehicle = driver['vehicle']
                         existing_entry.status = driver.get('status')
                     else:
-                        # Create a new entry
                         
                         new_entry = RaceData(
                             date=event_date,
@@ -887,7 +1057,6 @@ def upload_data():
         init_db()
 
 if __name__ == '__main__':
-
 
 
     app.config['race_active'] = False

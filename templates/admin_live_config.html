@@ -1,0 +1,217 @@
+{% extends "admin_base.html" %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto px-4 py-12">
+    <form id="eventForm" method="POST" enctype="multipart/form-data" class="space-y-12">
+        <div class="space-y-1">
+            <label for="eventName" class="block text-sm font-medium text-gray-700 mb-1">Event Navn</label>
+            <input type="text" 
+                   id="eventName" 
+                   name="eventName" 
+                   value="{{ event.name if event else '' }}"
+                   placeholder="Enter event name"
+                   class="w-full bg-white border-b-2 border-gray-200 pb-2 focus:border-blue-500 focus:outline-none transition-colors text-lg text-gray-900"
+                   required>
+        </div>
+
+        <div class="space-y-4">
+            <label class="block text-sm font-medium text-gray-700">Live event synlighet</label>
+            <div class="flex bg-gray-50 p-1 rounded-xl">
+                <button type="button" 
+                        onclick="setVisibility(0)"
+                        id="visibility-0"
+                        class="flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200">
+                    Deaktiver
+                </button>
+                <button type="button"
+                        onclick="setVisibility(1)"
+                        id="visibility-1"
+                        class="flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200">
+                    Innlogging
+                </button>
+                <button type="button"
+                        onclick="setVisibility(2)"
+                        id="visibility-2"
+                        class="flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200">
+                    Aktiver
+                </button>
+            </div>
+            <input type="hidden" id="visibilityState" name="visibilityState" value="{{ event.visibility if event else 0 }}">
+        </div>
+
+        <div class="flex items-center pt-6">
+            <input type="checkbox" 
+                   id="removeDataCheckbox"
+                   name="remove_current_data" 
+                   value="true"
+                   class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2">
+            <label for="removeDataCheckbox" 
+                   class="ms-3 text-sm font-medium text-gray-900">
+                Fjern nåværende data
+            </label>
+        </div>
+
+        <div class="space-y-4 pt-6">
+            <label class="block text-sm font-medium text-gray-700">Arrangementinfo PDF</label>
+            
+            <div class="relative group" id="dropZone">
+                <input type="file" 
+                       id="pdfInput"
+                       name="pdf_files" 
+                       accept=".pdf"
+                       multiple
+                       class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                       onchange="handleFileSelect(this.files)">
+                <div class="border-2 border-dashed border-gray-200 rounded-lg p-8 text-center hover:border-blue-500 transition-colors">
+                    <span class="text-sm text-gray-600">Drag PDFs here or click to upload multiple files</span>
+                </div>
+            </div>
+
+            <div id="pdfPreviewGrid" class="grid grid-cols-1 gap-4 pt-6">
+                {% for pdf in existing_pdfs %}
+                <div class="pdf-preview relative bg-white border border-gray-200 rounded-lg p-4 hover:border-blue-200 transition-colors">
+                    <input type="hidden" name="existing_pdfs[]" value="{{ pdf.id }}">
+                    <div class="space-y-3">
+                        <div class="flex items-center space-x-3">
+                            <svg class="w-8 h-8 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            <span class="text-sm text-gray-500 truncate flex-1">{{ pdf.filename }}</span>
+                            <button type="button" 
+                                    onclick="this.closest('.pdf-preview').remove()" 
+                                    class="text-gray-400 hover:text-red-600 transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <input type="text"
+                               name="pdf_names[]"
+                               value="{{ pdf.display_name }}"
+                               placeholder="Enter display name"
+                               class="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors"
+                               required>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="pt-6">
+            <button type="submit"
+                    class="w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+                Save Changes
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+let fileList = new DataTransfer();
+
+function handleFileSelect(files) {
+    Array.from(files).forEach(file => {
+        fileList.items.add(file);
+    });
+    
+    document.getElementById('pdfInput').files = fileList.files;
+    
+    updatePDFPreviews();
+}
+
+function updatePDFPreviews() {
+    const previewGrid = document.getElementById('pdfPreviewGrid');
+    
+    Array.from(previewGrid.querySelectorAll('.pdf-preview')).forEach(preview => {
+        if (!preview.querySelector('input[name="existing_pdfs[]"]')) {
+            preview.remove();
+        }
+    });
+    
+    Array.from(fileList.files).forEach((file, index) => {
+        const preview = document.createElement('div');
+        preview.className = 'pdf-preview relative bg-white border border-gray-200 rounded-lg p-4 hover:border-blue-200 transition-colors';
+        preview.innerHTML = `
+            <div class="space-y-3">
+                <div class="flex items-center space-x-3">
+                    <svg class="w-8 h-8 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <span class="text-sm text-gray-500 truncate flex-1">${file.name}</span>
+                    <button type="button" 
+                            onclick="removePDF(${index})" 
+                            class="text-gray-400 hover:text-red-600 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <input type="text"
+                       name="new_pdf_names[]"
+                       placeholder="Enter display name"
+                       class="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors"
+                       required>
+            </div>
+        `;
+        previewGrid.appendChild(preview);
+    });
+}
+
+function removePDF(index) {
+    const newFileList = new DataTransfer();
+    
+    Array.from(fileList.files)
+        .filter((_, i) => i !== index)
+        .forEach(file => newFileList.items.add(file));
+    
+    fileList = newFileList;
+    document.getElementById('pdfInput').files = fileList.files;
+    updatePDFPreviews();
+}
+
+function setVisibility(state) {
+    document.querySelectorAll('[id^="visibility-"]').forEach(button => {
+        button.classList.remove('bg-blue-100', 'text-blue-800');
+        button.classList.add('text-gray-600', 'hover:bg-gray-100');
+    });
+    
+    const activeButton = document.getElementById(`visibility-${state}`);
+    activeButton.classList.remove('text-gray-600', 'hover:bg-gray-100');
+    activeButton.classList.add('bg-blue-100', 'text-blue-800');
+    
+    document.getElementById('visibilityState').value = state;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const initialState = document.getElementById('visibilityState').value;
+    setVisibility(parseInt(initialState));
+});
+
+const dropZone = document.getElementById('dropZone');
+
+dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.querySelector('div').classList.add('border-blue-500');
+});
+
+dropZone.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    dropZone.querySelector('div').classList.remove('border-blue-500');
+});
+
+dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.querySelector('div').classList.remove('border-blue-500');
+    handleFileSelect(e.dataTransfer.files);
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const checkbox = document.getElementById('removeDataCheckbox');
+    
+    checkbox.addEventListener('change', (e) => {
+        e.target.value = e.target.checked ? 'true' : 'false';
+    });
+});
+
+</script>
+{% endblock %}
