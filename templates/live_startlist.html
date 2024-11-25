@@ -187,6 +187,7 @@ tbody tr:last-child td {
 
 <div class="container mx-auto px-4 py-8">
     <div class="max-w-3xl mx-auto space-y-6">
+
         {% for category, races in grouped_data.items() %}
             <div class="bg-white shadow-md rounded-lg overflow-hidden">
                 <button class="w-full text-left px-6 py-4 bg-gray-100 hover:bg-gray-200 transition-colors duration-200 focus:outline-none flex items-center justify-between" onclick="toggleAccordion('category-{{ category|replace(' ', '-') }}')">
@@ -221,14 +222,24 @@ tbody tr:last-child td {
                                                         <div class="driver-pair">
                                                             {% set entry1 = entries[i] %}
                                                             {% set entry2 = entries[i+1] if i+1 < entries|length else None %}
-                                                            <div class="cid cid-left">{{ entry1.cid }}</div>
-                                                            <div class="driver-info driver-left">{{ entry1.driver_name }}</div>
-                                                            <div class="vehicle-left">{{ entry1.vehicle }}</div>
-                                                            <div class="pair-number">{{ (i // 2) + 1 }}</div>
+                                                                {% if entry1.penalty != 0.0 %}
+                                                                    {% set class_add = 'line-through' %}
+                                                                {% else %}
+                                                                    {% set class_add = '' %}
+                                                                {% endif %}
+                                                                <div class="cid cid-left {{ class_add }}">{{ entry1.cid }}</div>
+                                                                <div class="driver-info driver-left {{ class_add }}">{{ entry1.driver_name }}</div>
+                                                                <div class="vehicle-left {{ class_add }}">{{ entry1.vehicle }}</div>
+                                                                <div class="pair-number {{ class_add }}">{{ (i // 2) + 1 }}</div>
                                                             {% if entry2 %}
-                                                                <div class="driver-info driver-right">{{ entry2.driver_name }}</div>
-                                                                <div class="vehicle-right">{{ entry2.vehicle }}</div>
-                                                                <div class="cid cid-right">{{ entry2.cid }}</div>
+                                                                {% if entry2.penalty != 0.0 %}
+                                                                    {% set class_add = 'line-through' %}
+                                                                {% else %}
+                                                                    {% set class_add = '' %}
+                                                                {% endif %}
+                                                                <div class="driver-info driver-right {{ class_add }}">{{ entry2.driver_name }}</div>
+                                                                <div class="vehicle-right {{ class_add }}">{{ entry2.vehicle }}</div>
+                                                                <div class="cid cid-right {{ class_add }}">{{ entry2.cid }}</div>
                                                             {% else %}
                                                                 <div class="driver-info driver-right">-</div>
                                                                 <div class="vehicle-right">-</div>

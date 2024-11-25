@@ -28,10 +28,27 @@ class RaceData(Base):
     penalty = Column(Float)
     speed = Column(Float)
     vehicle = Column(String)
+    enabled = Column(Boolean, default=True)
+    race_class = Column(String, default="None")
+
 
     def __repr__(self):
         return f"<RaceData(id={self.id}, event_title='{self.event_title}', driver_name='{self.driver_name}')>"
+    
+    def to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
+class RaceClasses(Base):
+    __tablename__ = 'race_classes'
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+
+    def __repr__(self):
+        return f"<RealTimeData(id={self.id}, name='{self.name}')>"
+    
+    def to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+    
 class RealTimeData(Base):
     __tablename__ = 'real_time_data'
     id = Column(Integer, primary_key=True)
@@ -70,13 +87,24 @@ class RealTimeKvaliData(Base):
 class RealTimeState(Base):
     __tablename__ = 'real_time_state'
     id = Column(Integer, primary_key=True)
-    active_driver_1 = Column(Integer)
-    active_driver_2 = Column(Integer)
-    active_event = Column(String)
-    active_race = Column(String)
-    active_heat = Column(Integer)
-    active_mode = Column(Integer)
+    active_driver_1 = Column(Integer, default=0)
+    active_driver_2 = Column(Integer, default=0)
+    active_event = Column(String, default="None")
+    active_race = Column(String, default="None")
+    active_heat = Column(Integer, default="None")
+    active_mode = Column(Integer, default="None")
     active_race_state = Column(Integer, default=False)
+    display_quali = Column(Boolean, default=False)
+
+    def to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+class live_event_liste(Base):
+    __tablename__ = 'live_event_liste'
+    id = Column(Integer, primary_key=True)
+    event_navn = Column(String)
+    heat = Column(Integer)
+    mode = Column(Integer)
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}

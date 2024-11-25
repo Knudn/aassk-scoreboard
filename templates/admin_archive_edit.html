@@ -1,0 +1,740 @@
+{% extends "admin_base.html" %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-8">
+        <h1 class="text-2xl font-bold text-gray-900">Race Archive Editor</h1>
+        <div class="flex items-center space-x-4">
+            <span class="text-sm text-gray-500">Total Events: {{ total_events }}</span>
+            <button onclick="expandAll()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                Expand All
+            </button>
+        </div>
+    </div>
+
+    <div class="space-y-6">
+        {% for year, events in races_by_year.items() %}
+        <div class="bg-white rounded-lg shadow">
+            <!-- Year Header -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                <button onclick="toggleAccordion(this, 'year')" 
+                        class="flex items-center space-x-3 focus:outline-none group w-full"
+                        data-year="{{ year }}">
+                    <svg class="w-5 h-5 text-gray-500 transform transition-transform duration-200 group-hover:text-blue-500" 
+                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                    <span class="text-lg font-semibold text-gray-900">{{ year }}</span>
+                    <span class="ml-2 px-2.5 py-0.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-full">
+                        {{ events|length }} events
+                    </span>
+                </button>
+            </div>
+
+            <!-- Events Groups -->
+            <div class="hidden" id="year-content-{{ year }}">
+                {% for event_title, races in events.items() %}
+                <div class="border-b border-gray-200 last:border-b-0">
+                    <!-- Event Title Header -->
+                    <div class="bg-gray-50">
+                        <div class="flex items-center justify-between px-6 py-3">
+                            <button onclick="toggleAccordion(this, 'event')" 
+                                    class="flex items-center space-x-3 focus:outline-none group"
+                                    data-event="{{ year }}-{{ loop.index }}">
+                                <svg class="w-4 h-4 text-gray-400 transform transition-transform duration-200 group-hover:text-blue-500" 
+                                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                </svg>
+                                <span class="text-base font-medium text-gray-700">{{ event_title }}</span>
+                                <span class="ml-2 px-2 py-0.5 text-xs font-medium text-gray-500 bg-gray-200 rounded-full">
+                                    {{ races|length }} races
+                                </span>
+                                <span class="ml-2 px-2 py-0.5 text-xs font-medium rounded-full flex items-center gap-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 {% if races[0].enabled %}text-green-500{% else %}text-red-500{% endif %}" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                                    </svg>
+                                    <span class="{% if races[0].enabled %}text-green-500{% else %}text-red-500{% endif %}">
+                                        {% if races[0].enabled %}Enabled{% else %}Disabled{% endif %}
+                                    </span>
+
+                                </span>
+                            </button>
+                            <button onclick="openModal('event-title-config-{{ year }}-{{ event_title }}')"
+                                    class="flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                                </svg>
+                                Edit Event
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="hidden" id="event-content-{{ year }}-{{ loop.index }}">
+                        <div class="divide-y divide-gray-200">
+                            {% for race in races %}
+                            <div class="px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between hover:bg-gray-50 transition-colors duration-150">
+                                <!-- Race Info -->
+                                <div class="flex items-start space-x-4 mb-4 sm:mb-0">
+                                    <div class="flex-shrink-0">
+                                        <input type="checkbox" 
+                                               class="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 transition-colors duration-150"
+                                               {% if race.visible %}checked{% endif %}
+                                               onchange="toggleVisibility({{ race.id }}, this.checked)">
+                                    </div>
+                                    <div class="flex flex-col space-y-1">
+                                        <h3 class="text-base font-medium text-gray-900">{{ race.race_title }}</h3>
+                                        <div class="flex items-center space-x-3">
+                                            <span class="text-sm text-gray-500">{{ race.date.strftime('%Y-%m-%d') }}</span>
+                                            <span class="text-sm font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">{{ race.race_class }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                    
+                                <!-- Status and Actions -->
+                                <div class="flex items-center space-x-4">
+                                    <!-- Enabled Status -->
+                                    <span class="flex items-center gap-1 {% if race.enabled %}text-green-500{% else %}text-red-500{% endif %}">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                                        </svg>
+                                        <span class="text-sm font-medium">
+                                            {% if race.enabled %}Enabled{% else %}Disabled{% endif %}
+                                        </span>
+                                    </span>
+                    
+                                    <!-- Action Buttons -->
+                                    <button onclick="openModal('race-config-{{ race.id }}')"
+                                            class="flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-150">
+                                        <svg class="w-4 h-4 text-gray-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                                        </svg>
+                                        Race Config
+                                    </button>
+                                    <button onclick="openModal('driver-data-{{ race.id }}')"
+                                            class="flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-150">
+                                        <svg class="w-4 h-4 text-gray-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                                        </svg>
+                                        Drivers
+                                    </button>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div id="modal-backdrop" class="hidden fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity duration-300"></div>
+<div id="modal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
+        <div class="relative bg-white rounded-lg shadow-xl max-w-4xl max-h-[90vh] mx-auto">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                <h3 id="modal-title" class="text-xl font-semibold text-gray-900"></h3>
+                <button onclick="closeModal()" 
+                        class="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div id="modal-content" class="p-6 overflow-y-auto" style="max-height: calc(90vh - 120px);">
+                <!-- Content will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+
+
+function openModal(id) {
+    const [type, ...rest] = id.split('-');
+    const modal = document.getElementById('modal');
+    const backdrop = document.getElementById('modal-backdrop');
+    const title = document.getElementById('modal-title');
+    const content = document.getElementById('modal-content');
+
+    // Set title and load content based on type
+    switch(type) {
+        case 'event':
+            title.textContent = 'Edit Event';
+            loadEventTitleConfig(rest);
+            break;
+        case 'race':
+            title.textContent = 'Race Configuration';
+            loadRaceConfig(rest);
+            break;
+        case 'driver':
+            title.textContent = 'Driver Data';
+            loadDriverData(rest);
+            break;
+    }
+
+    modal.classList.remove('hidden');
+    backdrop.classList.remove('hidden');
+}
+
+function closeModal() {
+    const modal = document.getElementById('modal');
+    const backdrop = document.getElementById('modal-backdrop');
+    modal.classList.add('hidden');
+    backdrop.classList.add('hidden');
+}
+
+function createEventTitleConfigForm(data) {
+    return `
+        <form onsubmit="saveEventTitleConfig(event, '${data.event_title}', ${data.year})" class="space-y-6">
+            <div class="grid grid-cols-1 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Event Title</label>
+                    <input type="text" name="new_event_title" value="${data.event_title}" 
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    <p class="mt-1 text-sm text-gray-500">
+                        Changing this will update all races associated with this event in ${data.year}.
+                    </p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Event Date</label>
+                    <input type="date" 
+                           name="event_date" 
+                           value="${data.date || `${data.year}-01-01`}"
+                           min="${data.year}-01-01" 
+                           max="${data.year}-12-31"
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    <p class="mt-1 text-sm text-gray-500">
+                        Changing this will update the date for all races in this event.
+                    </p>
+                </div>
+
+                <div class="flex items-center">
+                    <input type="checkbox"
+                           id="event_enabled"
+                           name="event_enabled"
+                           ${data.enabled ? 'checked' : ''}
+                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                    <label for="event_enabled" class="ml-2 block text-sm font-medium text-gray-700">
+                        Enable Event
+                    </label>
+                    <p class="ml-2 text-sm text-gray-500">
+                        When disabled, this event will not be visible to users.
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-3">
+                <button type="button" onclick="closeModal()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Save Changes
+                </button>
+            </div>
+        </form>
+    `;
+}
+function loadEventTitleConfig(eventId) {
+    console.log(eventId[0])
+    fetch(`/admin/edit_archive/event-title?year=${eventId[2]}&event_name=${eventId[3]}`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('modal-content').innerHTML = createEventTitleConfigForm(data);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Error loading event configuration', 'error');
+        });
+}
+
+function loadRaceConfig(raceId) {
+    race_id=raceId[1]
+    fetch(`/admin/edit_archive/race?race_id=${race_id}`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('modal-content').innerHTML = createRaceConfigForm(data["entry"], data["classes"]);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Error loading race configuration', 'error');
+        });
+}
+
+function loadDriverData(raceId) {
+    race_id=raceId[1]
+    fetch(`/admin/edit_archive/drivers?race_id=${race_id}`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('modal-content').innerHTML = createDriverDataForm(data);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Error loading driver data', 'error');
+        });
+}
+
+function createDriverDataForm(data) {
+    return `
+        <form onsubmit="saveDriverData(event, ${data.race_id})" class="space-y-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-medium text-gray-900">
+                    Drivers for ${data.race_title}
+                </h3>
+                <button type="button" onclick="addNewDriver()"
+                        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Add Driver
+                </button>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Run</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Driver Name</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Club</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vehicle</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Finish Time</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Penalty</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Inter 1</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Inter 2</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        ${data.drivers.map(driver => `
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-4 py-2">
+                                    <input type="number" name="run" value="${driver.heat}"
+                                           class="block w-20 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                </td>
+                                <td class="px-4 py-2">
+                                    <input type="text" name="driver_name" value="${driver.driver_name || ''}"
+                                           class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                </td>
+                                <td class="px-4 py-2">
+                                    <input type="text" name="driver_club" value="${driver.driver_club || ''}"
+                                           class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                </td>
+                                <td class="px-4 py-2">
+                                    <input type="text" name="vehicle" value="${driver.vehicle || ''}"
+                                           class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                </td>
+                                <td class="px-4 py-2">
+                                    <input type="number" name="finishtime" value="${driver.finishtime || 0}"
+                                           step="0.001"
+                                           class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                </td>
+                                <td class="px-4 py-2">
+                                    <input type="number" name="penalty" value="${driver.penalty || 0}"
+                                           step="0.001"
+                                           class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                </td>
+                                <td class="px-4 py-2">
+                                    <input type="number" name="status" value="${driver.status || 0}"
+                                           class="block w-20 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                </td>
+                                <td class="px-4 py-2">
+                                    <input type="number" name="inter_1" value="${driver.inter_1 || 0}"
+                                           step="0.001"
+                                           class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                </td>
+                                <td class="px-4 py-2">
+                                    <input type="number" name="inter_2" value="${driver.inter_2 || 0}"
+                                           step="0.001"
+                                           class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                </td>
+                                <td class="px-4 py-2">
+                                    <button type="button" onclick="this.closest('tr').remove()"
+                                            class="text-red-600 hover:text-red-900">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                        </svg>
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="flex justify-end space-x-3 mt-6">
+                <button type="button" onclick="closeModal()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Save Changes
+                </button>
+            </div>
+        </form>
+    `;
+}
+
+
+function createRaceConfigForm(data, classes_strings) {
+    return `
+        <form onsubmit="saveRaceConfig(event, ${data.id})" class="space-y-6">
+            <div class="grid grid-cols-1 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Race Title</label>
+                    <input type="text" 
+                           name="race_title" 
+                           value="${data.race_title}"
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Event Title</label>
+                    <input type="text" 
+                           name="event_title" 
+                           value="${data.event_title}"
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Date</label>
+                    <input type="date" 
+                           name="date" 
+                           value="${data.date}"
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Mode</label>
+                    <input type="number" 
+                           name="mode" 
+                           value="${data.mode}"
+                           class="mt-1 block w-32 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Race Class</label>
+                    <select 
+                        name="race_class"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        ${classes_strings.map(className => `
+                            <option value="${className}" ${data.race_class === className ? 'selected' : ''}>
+                                ${className}
+                            </option>
+                        `).join('')}
+                    </select>
+                </div>
+
+                <div class="flex items-center">
+                    <input type="checkbox"
+                           id="race_enabled"
+                           name="race_enabled"
+                           ${data.enabled ? 'checked' : ''}
+                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                    <label for="race_enabled" class="ml-2 block text-sm font-medium text-gray-700">
+                        Enable Race
+                    </label>
+                    <p class="ml-2 text-sm text-gray-500">
+                        When disabled, this race will not be visible to users.
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-3">
+                <button type="button" onclick="closeModal()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Save Changes
+                </button>
+            </div>
+        </form>
+    `;
+}
+// Save function for Event Title Configuration
+function saveEventTitleConfig(event, oldEventTitle, year) {
+    event.preventDefault();
+    
+    const formData = new FormData(event.target);
+    const data = {
+        old_config: {
+            event_title: oldEventTitle,
+            date: document.querySelector('[name="event_date"]').getAttribute('value'),
+            year: year
+        },
+        new_config: {
+            event_title: formData.get('new_event_title'),
+            date: formData.get('event_date'),
+            enabled: formData.get('event_enabled') === 'on',
+            year: year
+        }
+    };
+
+    fetch(`/admin/edit_archive/event-title`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Event configuration saved successfully', 'success');
+            closeModal();
+            window.location.reload();
+        } else {
+            showNotification(data.message || 'Error saving event configuration', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error saving event configuration', 'error');
+    });
+}
+
+// Save function for Race Configuration
+function saveRaceConfig(event, raceId) {
+    event.preventDefault();
+    
+    const formData = new FormData(event.target);
+    const data = {
+        old_config: {
+            id: raceId,
+            race_title: document.querySelector('[name="race_title"]').getAttribute('value'),
+            event_title: document.querySelector('[name="event_title"]').getAttribute('value'),
+            date: document.querySelector('[name="date"]').getAttribute('value'),
+            mode: document.querySelector('[name="mode"]').getAttribute('value'),
+            race_class: document.querySelector('[name="race_class"]').getAttribute('value'),
+            enabled: document.querySelector('[name="race_enabled"]').checked
+        },
+        new_config: {
+            id: raceId,
+            race_title: formData.get('race_title'),
+            event_title: formData.get('event_title'),
+            date: formData.get('date'),
+            mode: parseInt(formData.get('mode')),
+            race_class: formData.get('race_class'),
+            enabled: formData.get('race_enabled') === 'on'
+        }
+    };
+
+    fetch(`/admin/edit_archive/race`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Race configuration saved successfully', 'success');
+            closeModal();
+            window.location.reload();
+        } else {
+            showNotification(data.message || 'Error saving race configuration', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error saving race configuration', 'error');
+    });
+}
+
+// Save function for Driver Data
+function saveDriverData(event, raceId) {
+    event.preventDefault();
+    
+    // Get current data from data attributes for old_config
+    const tableRows = event.target.querySelectorAll('tbody tr');
+    const originalDrivers = Array.from(tableRows).map(row => {
+        const inputs = row.querySelectorAll('input');
+        const originalValues = {};
+        inputs.forEach(input => {
+            originalValues[input.name] = input.getAttribute('value');
+        });
+        return {
+            run: parseInt(originalValues.run),
+            driver_name: originalValues.driver_name,
+            driver_club: originalValues.driver_club,
+            vehicle: originalValues.vehicle,
+            finishtime: parseFloat(originalValues.finishtime) || 0,
+            penalty: parseFloat(originalValues.penalty) || 0,
+            status: parseInt(originalValues.status) || 0,
+            inter_1: parseFloat(originalValues.inter_1) || 0,
+            inter_2: parseFloat(originalValues.inter_2) || 0
+        };
+    });
+
+    // Get new values from current input values
+    const newDrivers = Array.from(tableRows).map(row => {
+        return {
+            run: parseInt(row.querySelector('[name="run"]').value),
+            driver_name: row.querySelector('[name="driver_name"]').value,
+            driver_club: row.querySelector('[name="driver_club"]').value,
+            vehicle: row.querySelector('[name="vehicle"]').value,
+            finishtime: parseFloat(row.querySelector('[name="finishtime"]').value) || 0,
+            penalty: parseFloat(row.querySelector('[name="penalty"]').value) || 0,
+            status: parseInt(row.querySelector('[name="status"]').value) || 0,
+            inter_1: parseFloat(row.querySelector('[name="inter_1"]').value) || 0,
+            inter_2: parseFloat(row.querySelector('[name="inter_2"]').value) || 0
+        };
+    });
+
+    const data = {
+        old_config: {
+            race_id: raceId,
+            drivers: originalDrivers
+        },
+        new_config: {
+            race_id: raceId,
+            drivers: newDrivers
+        }
+    };
+
+    fetch(`/admin/edit_archive/drivers`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Driver data saved successfully', 'success');
+            closeModal();
+            window.location.reload();
+        } else {
+            showNotification(data.message || 'Error saving driver data', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error saving driver data', 'error');
+    });
+}
+
+function showNotification(message, type) {
+    const notification = document.createElement('div');
+    notification.className = `
+        fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 ease-out
+        ${type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}
+    `;
+    notification.style.opacity = '0';
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    // Fade in
+    setTimeout(() => {
+        notification.style.opacity = '1';
+    }, 10);
+    
+    // Fade out and remove
+    setTimeout(() => {
+        notification.style.opacity = '0';
+        setTimeout(() => notification.remove(), 300);
+    }, 2700);
+}
+
+function addNewDriver(raceId) {
+    const tbody = document.querySelector('#modal-content tbody');
+    const newRow = document.createElement('tr');
+    newRow.className = 'hover:bg-gray-50';
+    newRow.innerHTML = `
+        <td class="px-4 py-2">
+            <input type="number" name="heat" value="1" 
+                   class="block w-20 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+        </td>
+        <td class="px-4 py-2">
+            <input type="number" name="run" value="1"
+                   class="block w-20 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+        </td>
+        <td class="px-4 py-2">
+            <input type="text" name="driver_name" value=""
+                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+        </td>
+        <td class="px-4 py-2">
+            <input type="text" name="driver_club" value=""
+                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+        </td>
+        <td class="px-4 py-2">
+            <input type="number" name="finishtime" value="0"
+                   step="0.001"
+                   class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+        </td>
+        <td class="px-4 py-2">
+            <input type="number" name="status" value="0"
+                   class="block w-20 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+        </td>
+        <td class="px-4 py-2">
+            <input type="number" name="inter_1" value="0"
+                   step="0.001"
+                   class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+        </td>
+        <td class="px-4 py-2">
+            <input type="number" name="inter_2" value="0"
+                   step="0.001"
+                   class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+        </td>
+        <td class="px-4 py-2">
+            <button type="button" onclick="this.closest('tr').remove()"
+                    class="text-red-600 hover:text-red-900">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+            </button>
+        </td>
+    `;
+    tbody.appendChild(newRow);
+}
+
+// Add event listener for clicking outside modal
+document.getElementById('modal-backdrop').addEventListener('click', closeModal);
+    let expandedState = false;
+
+    function toggleAccordion(button, type) {
+        const contentId = type === 'year' 
+            ? `year-content-${button.getAttribute('data-year')}`
+            : `event-content-${button.getAttribute('data-event')}`;
+        
+        const content = document.getElementById(contentId);
+        const arrow = button.querySelector('svg');
+        
+        content.classList.toggle('hidden');
+        arrow.classList.toggle('rotate-180');
+    }
+
+    function expandAll() {
+        const yearContents = document.querySelectorAll('[id^="year-content-"]');
+        const eventContents = document.querySelectorAll('[id^="event-content-"]');
+        const arrows = document.querySelectorAll('button[data-year] svg, button[data-event] svg');
+        
+        yearContents.forEach(content => {
+            content.classList.toggle('hidden', expandedState);
+        });
+        
+        eventContents.forEach(content => {
+            content.classList.toggle('hidden', expandedState);
+        });
+        
+        arrows.forEach(arrow => {
+            arrow.classList.toggle('rotate-180', !expandedState);
+        });
+        
+        expandedState = !expandedState;
+    }
+
+    // Keep your existing functions for visibility toggle, notifications, and modal handling
+</script>
+{% endblock %}

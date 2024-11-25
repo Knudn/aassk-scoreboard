@@ -3,7 +3,7 @@ from sqlalchemy import create_engine, and_, text, func
 from sqlalchemy.orm import sessionmaker, Session
 from queries import *
 from models import Base, RaceData
-from utils.utils import fix_names, insert_into_database
+from utils.utils import fix_names
 #from flask_cors import CORS
 from datetime import date
 import jwt
@@ -83,13 +83,13 @@ def process_table_data(table_data):
     for race_title in table_data:
         tmp_list = []
         for heat in table_data[race_title]:
+
             tmp_list.insert(0, reorder_heat_results(table_data[race_title][heat]))
         
         
         cid_list= []
         tmp_entries = []
         
-
         for k,b in enumerate(tmp_list):
             tmp_dict = {}
             k += 1
@@ -99,6 +99,7 @@ def process_table_data(table_data):
                     tmp_dict[driver_inuq] = b[driver_inuq]                 
 
             table_data[race_title][k] = tmp_dict
+    
     return table_data   
 
 def broadcast_to_room(room_name, event_name, data):
@@ -202,10 +203,50 @@ def get_ladder_data_live():
 
         return event_lst, table_data, event_date
 
-def get_ladder_data(year, event_name, event_type):
-    
+def get_finale(year, event_name, event_type):
+    entry_data = None
     with get_db() as db:
+        event_data = (
+            db.query(RaceData)
+            .filter(
+                RaceData.race_title.ilike(f'%{event_type}%'),
+                RaceData.date.ilike(f'%{year}%'),
+                RaceData.event_title == event_name
+            )
+            .order_by(
+                RaceData.penalty != 0,
+                RaceData.finishtime == 0,
+                RaceData.finishtime
+            )
+            .all()
+        )
+        table_data = {}
+        for table_nr, entry in enumerate(event_data):
+            table_nr += 1
+            if entry.race_title not in table_data.keys():
+                table_data[entry.race_title] = {}
+            
+            if entry_data is None:
+                entry_date = entry.date
 
+            table_data[entry.race_title][table_nr] = {
+                "cid": entry.cid,
+                "name": entry.driver_name,
+                "club": entry.driver_club,
+                "event_title": entry.event_title,
+                "race_title": entry.race_title,
+                "snowmobile": entry.vehicle,
+                "run": entry.run,
+                "penalty": entry.penalty,
+                "finishtime": entry.finishtime,
+                "heat": entry.heat,
+            }
+        
+        return table_data, entry_date
+    
+
+def get_ladder_data(year, event_name, event_type):
+    with get_db() as db:
         event_data = db.query(RaceData).filter(RaceData.race_title.ilike(f'%{event_type}%'), RaceData.date.ilike(f'%{year}%'), RaceData.event_title == event_name).order_by(RaceData.event_title).all()
 
         data = {
@@ -246,7 +287,6 @@ def get_ladder_data(year, event_name, event_type):
 
         reordered_table_data = process_table_data(table_data)
 
-
         for k, t in enumerate(event_data):
             if event != t.race_title:
                 if data["event_data"] != []:
@@ -256,7 +296,7 @@ def get_ladder_data(year, event_name, event_type):
                     "Timedata": {},
                     "event_data": []
                 }
-
+                
                 event = t.race_title
 
             if data["event_data"] == []:
@@ -267,6 +307,10 @@ def get_ladder_data(year, event_name, event_type):
                 data["Timedata"][t.heat] = []
 
             data["Timedata"][t.heat].append([t.cid, t.driver_name, "", t.driver_club, t.vehicle, t.finishtime, t.penalty, t.inter_1])
+        
+        # Add the last group of data after the loop ends
+        if data["event_data"] != []:
+            event_lst.append(data)
 
         return event_lst, reordered_table_data, event_date
     
@@ -278,19 +322,22 @@ def get_event_race_data():
             RaceData.date,
             RaceData.event_title,
             RaceData.race_title
-        ).order_by(RaceData.date).all()
-
+        ).filter(RaceData.enabled==True).order_by(RaceData.date).all()
+        
         live_state = db.query(RealTimeState).first()
 
-        if live_state.active_race_state == 0:
-            live_state_name = "NONE"
-        elif live_state.active_race_state == 1 and is_user_logged_in():
-            live_state_name = live_state.active_event
-        elif live_state.active_race_state == 2:
-            live_state_name = live_state.active_event
+        if live_state is not None:
+
+            if live_state.active_race_state == 0:
+                live_state_name = "NONE"
+            elif live_state.active_race_state == 1 and is_user_logged_in():
+                live_state_name = live_state.active_event
+            elif live_state.active_race_state == 2:
+                live_state_name = live_state.active_event
+            else:
+                live_state_name = "NONE"
         else:
             live_state_name = "NONE"
-        
         result = defaultdict(lambda: defaultdict(list))
 
         for date, event_title, race_title in event_data:
@@ -302,7 +349,7 @@ def get_event_race_data():
                 event_title: list(set(race_titles))
                 for event_title, race_titles in events.items()
             }
-        
+
         return formatted_result, live_state_name
 
 def check_creds(token):
@@ -329,7 +376,6 @@ def live():
     events, live_event_state = get_event_race_data()
 
 
-
     with get_db() as db:
         realtime_state = db.query(RealTimeState).first()
         
@@ -342,7 +388,8 @@ def live():
                 active_heat=1,
                 active_mode=1,
                 active_event = "None",
-                active_race_state=0
+                display_quali=False,
+
             )
             db.add(default_state)
             db.commit()
@@ -356,12 +403,18 @@ def live():
         if realtime_state_dict["active_race"] == None:
             return render_template('live_none.html', events=events, live_event_state=live_event_state)
 
+        elif "finale" in realtime_state_dict["active_race"].lower():
+            return render_template('live_finale.html', events=events, live_event_state=live_event_state)
+        
         elif "stige" in realtime_state_dict["active_race"].lower():
             return render_template('live_stige.html', events=events, live_event_state=live_event_state)
+        
         elif "kval" in realtime_state_dict["active_race"].lower():
-            return render_template('live_kvali.html', events=events, live_event_state=live_event_state)
+
+            display_quali_value = db.query(RealTimeState.display_quali).first()[0]
+            return render_template('live_kvali.html', events=events, live_event_state=live_event_state, display_quali=display_quali_value)
     
-    return render_template('index.html', events=events, json_RealTimeData=json_RealTimeData, active_event=active_event, event_state=event_state, live_event_state=live_event_state)
+    return render_template('live_none.html', events=events, json_RealTimeData=json_RealTimeData, active_event=active_event, event_state=event_state, live_event_state=live_event_state)
 
 @app.route('/heartbeat')
 def heartbeat():
@@ -387,24 +440,35 @@ def handle_device_connected(data):
     with get_db() as db:
         realtime_state = db.query(RealTimeState).first()
         if realtime_state is not None:
+            
             realtime_state = realtime_state.to_dict()
-            real_time_data_objects = db.query(RealTimeData).filter(RealTimeData.race_title==realtime_state["active_race"], RealTimeData.heat==realtime_state["active_heat"]).all()
-            race_data = [rdata.to_dict() for rdata in real_time_data_objects]
-            kvali_data = get_kvali(realtime_state["active_race"])
-            kvali__crit_data = db.query(RealTimeKvaliData.kvali_num).filter(RealTimeKvaliData.race_title==realtime_state["active_race"]).first()
+            if "finale" in realtime_state["active_race"].lower():
+                real_time_data_objects = db.query(RealTimeData).filter(RealTimeData.race_title==realtime_state["active_race"], RealTimeData.heat==realtime_state["active_heat"]).all()
+                json_data["driver_data"] = []
+                json_data["state"] = realtime_state
 
-            json_data["state"] = realtime_state
-            json_data["driver_data"] = race_data
-            json_data["kvali_data"] = kvali_data
+                for a in real_time_data_objects:
+                    json_data["driver_data"].append(a.to_dict())
+                    
 
-            try:
-                json_data["kvali_crit"] = kvali__crit_data[0]
-            except:
-                json_data["kvali_crit"] = 99
+
+            else:
+                real_time_data_objects = db.query(RealTimeData).filter(RealTimeData.race_title==realtime_state["active_race"], RealTimeData.heat==realtime_state["active_heat"]).all()
+                race_data = [rdata.to_dict() for rdata in real_time_data_objects]
+                kvali_data = get_kvali(realtime_state["active_race"])
+                kvali__crit_data = db.query(RealTimeKvaliData.kvali_num).filter(RealTimeKvaliData.race_title==realtime_state["active_race"]).first()
+
+                json_data["state"] = realtime_state
+                json_data["driver_data"] = race_data
+                json_data["kvali_data"] = kvali_data
+
+                try:
+                    json_data["kvali_crit"] = kvali__crit_data[0]
+                except:
+                    json_data["kvali_crit"] = 99
 
             emit('server_response', {'data': json.dumps(json_data)}, room=request.sid)
-        else:
-            emit('server_response', {'data': {"Error": "No active session"}}, room=request.sid)
+
 
 @app.route("/api/update_active_race_status", methods = ['POST'])
 def active_race_status():
@@ -415,6 +479,8 @@ def active_race_status():
     app.config['race_active'] = active_race
 
     return {"race_active": str(app.config['race_active'])}
+
+
 
 @app.route("/api/get_current_live_data", methods = ['GET'])
 def get_current_live_data():
@@ -462,13 +528,40 @@ def live_startlist():
                 grouped_data[category][race_title][entry.heat] = []
             
             grouped_data[category][race_title][entry.heat].append(entry)
-
+        for a in grouped_data:
+            for b in grouped_data[a]:
+                for t in grouped_data[a][b]:
+                    for g in grouped_data[a][b][t]:
+                        print(g.penalty)
         return render_template('live_startlist.html', grouped_data=grouped_data, events=events,live_event_state=live_event_state)
 
 
+@app.route("/live/eventer", methods=['GET'])
+def live_eventer():
+    from models import live_event_liste
+    from models import RealTimeState
+
+    
+
+    active_events = []
+
+    with get_db() as db: 
+        events_active = db.query(live_event_liste).all()
+        active_event = db.query(RealTimeState.active_race, RealTimeState.active_heat).first()
+
+        event_name = active_event[0]
+        active_heat = active_event[1]
+
+        for b in events_active:
+            active_events.append(b.to_dict())
+
+    events, live_event_state = get_event_race_data()
+
+    return render_template('live_event_list.html', events=events,live_event_state=live_event_state, active_events=active_events, event_name=event_name, active_heat=active_heat)
+    
 @app.route("/live/resultatliste", methods=['GET'])
 def live_resultatliste():
-    from models import RealTimeData, RealTimeKvaliData
+    from models import RealTimeData, RealTimeKvaliData, RealTimeState
     from itertools import groupby
     from operator import attrgetter
     import json
@@ -484,9 +577,6 @@ def live_resultatliste():
         real_time_data_objects = db.query(RealTimeData).all()
         race_titles = [rdata.to_dict() for rdata in real_time_data_objects]
 
-
-
-
     categories = []
 
 
@@ -497,7 +587,7 @@ def live_resultatliste():
             categories.append(title)
     
     if categories == []:
-         return render_template('live_resultatliste_none.html', events=events, categories=categories)
+         return render_template('live_resultatliste_none.html', events=events, categories=categories, live_event_state=live_event_state)
     
     if str(data_type).lower() == "stige":
         event_data, table_data, event_date = get_ladder_data_live()
@@ -505,59 +595,416 @@ def live_resultatliste():
         return render_template('live_resultatliste_stige.html', events=events, categories=categories, eventData=event_data, live_event_state=live_event_state)
     
     elif str(data_type).lower() == "kvalifisering":
+        with get_db() as db:
+            display_quali_value = db.query(RealTimeState.display_quali).first()[0]
+        return render_template('live_resultatliste_kval.html', events=events, categories=categories, race_titles=race_titles, kvali_data=kvali_data_dicts, live_event_state=live_event_state, display_quali=display_quali_value)
         
-        return render_template('live_resultatliste_kval.html', events=events, categories=categories, race_titles=race_titles, kvali_data=kvali_data_dicts, live_event_state=live_event_state)
-    else:
-        return render_template('live_resultatliste.html', events=events, categories=categories, live_event_state=live_event_state)
+    elif str(data_type).lower() == "finale":
 
+        return render_template('live_resultatliste_finale.html', events=events, categories=categories, 
+                               race_titles=race_titles, live_event_state=live_event_state)
+
+    else:
+        return render_template('live_resultatliste_none.html', events=events, categories=categories, live_event_state=live_event_state)
+
+
+
+
+@app.route("/admin/edit_names", methods=['POST', 'GET'])
+def edit_names():
+    if request.method == 'POST':
+        from models import RaceData
+        from sqlalchemy import distinct, update
+        data = request.json
+
+        old_name = data['old_names']
+        new_name = data['new_names']
+
+        print(old_name, "OLD")
+        print(new_name, "NEW")
+        for a in range(len(old_name)):
+            with get_db() as db:
+                affected_count = db.query(RaceData).filter(
+                    RaceData.driver_name == old_name[a]
+                ).count()
+                
+                if affected_count == 0:
+                    return False, f"No entries found for driver name: {old_name[a]}"
+                
+                # Perform the update
+                result = db.execute(
+                    update(RaceData)
+                    .where(RaceData.driver_name == old_name[a])
+                    .values(driver_name=new_name[a])
+                )
+
+
+    return render_template('admin_name_edit.html')
+
+@app.route('/api/search-drivers')
+def search_drivers():
+    from models import RaceData
+    from sqlalchemy import distinct
+
+    term = request.args.get('term')
+    with get_db() as db:
+        matching_names = (
+                    db.query(distinct(RaceData.driver_name))
+                    .filter(RaceData.driver_name.isnot(None))
+                    .filter(RaceData.driver_name != '')
+                    .filter(RaceData.driver_name.ilike(f'%{term}%'))
+                    .order_by(RaceData.driver_name)
+                    .all()
+                )        
+        return [name[0] for name in matching_names]
+
+@app.route("/admin/edit_archive", methods=['POST', 'GET'])
+def edit_archive():
+    from models import RaceData, RaceClasses
+    from sqlalchemy import distinct, func
+
+    classes_list = []
+    
+    with get_db() as db:
+        all_dates = db.query(RaceData.date).distinct().all()
+
+
+        years = sorted(list(set(date[0].year for date in all_dates)), reverse=True)
+        
+        races_by_year = {}
+        for year in years:
+            events = db.query(
+                RaceData.race_title,
+                RaceData.id,
+                RaceData.event_title,
+                RaceData.date,
+                RaceData.enabled,
+                RaceData.race_class
+            ).filter(
+                RaceData.date >= f'{year}-01-01',
+                RaceData.date <= f'{year}-12-31'
+            ).order_by(RaceData.date.desc()).distinct(RaceData.race_title).all()
+
+            events_by_title = {}
+            added = []
+
+            for e in events:
+                if [year, e.race_title, e.event_title] not in added:
+                    added.append([year, e.race_title, e.event_title])
+                    
+                    if e.event_title not in events_by_title:
+                        events_by_title[e.event_title] = []
+                    
+                    events_by_title[e.event_title].append({
+                        'id': e.id,
+                        'race_title': e.race_title,
+                        'event_title': e.event_title,
+                        'date': e.date,
+                        'race_class': e.race_class,
+                        'enabled': e.enabled
+                    })
+
+            races_by_year[year] = events_by_title
+
+        total_events = sum(len(year_data.keys()) for year_data in races_by_year.values())
+
+        return render_template(
+            'admin_archive_edit.html', 
+            races_by_year=races_by_year,
+            total_events=total_events,
+        )
+    
+@app.route('/admin/edit_archive/event-title', methods=['GET', 'POST'])
+def event():
+    from models import RaceData
+    from sqlalchemy import distinct, func
+    import datetime
+
+    
+    if request.method == 'GET':
+        year = request.args.get('year')
+        event = request.args.get('event_name')
+        
+        with get_db() as db:
+            entry = db.query(RaceData).filter(
+            RaceData.event_title == event,
+            func.strftime('%Y', RaceData.date) == str(year)
+            ).first().to_dict()
+            entry["date"] = entry["date"].isoformat()
+            return entry
+            
+    elif request.method == 'POST':
+        data = request.json
+
+        old_config = data.get('old_config')
+        new_config = data.get('new_config')
+
+        new_date = datetime.datetime.strptime(new_config['date'], '%Y-%m-%d').date()
+
+        with get_db() as db:
+            current_data = db.query(RaceData).filter(
+                RaceData.event_title == old_config['event_title'],
+                RaceData.date == old_config['date']
+            ).all()
+            
+            for record in current_data:
+                record.event_title = new_config['event_title']
+                record.date = new_date
+                record.enabled = new_config['enabled']
+            db.commit()
+
+    return jsonify({"success": True})
+
+@app.route('/admin/edit_archive/race', methods=['GET', 'POST'])
+def edit_archive_race_title():
+    from models import RaceData, RaceClasses
+    from sqlalchemy import distinct, func
+    import datetime
+    import json
+
+    classes_list = []
+    return_data = {}
+    
+    if request.method == 'GET':
+
+
+
+        race_id = request.args.get('race_id')
+
+        with get_db() as db:
+            classes_query = db.query(RaceClasses.name).all()
+            for a in classes_query:
+                classes_list.append(a.name)
+
+            entry = db.query(RaceData).filter(RaceData.id == race_id).first().to_dict()
+            entry["date"] = entry["date"].isoformat()
+
+            return_data["entry"] = entry
+            return_data["classes"] = classes_list
+
+
+            return return_data
+            
+    elif request.method == 'POST':
+        data = request.json
+
+        
+        old_config = data.get('old_config')
+        new_config = data.get('new_config')
+        new_date = datetime.datetime.strptime(new_config['date'], '%Y-%m-%d').date()
+
+        with get_db() as db:
+            current_data = db.query(RaceData).filter(
+                RaceData.event_title == old_config['event_title'],
+                RaceData.race_title == old_config['race_title'],
+                RaceData.date == old_config['date']
+            ).all()
+            
+            for record in current_data:
+                record.event_title = new_config['event_title']
+                record.date = new_date
+                record.enabled = new_config['enabled']
+                record.race_title = new_config['race_title']
+                record.race_class = new_config['race_class']
+                record.mode = new_config['mode']
+
+            db.commit()
+
+        print(new_config)
+
+
+    return jsonify({"success": True})
+
+@app.route('/admin/edit_archive/drivers', methods=['GET', 'POST'])
+def edit_archive_driver_data():
+    from models import RaceData
+
+    race_id = request.args.get('race_id')  
+    with get_db() as db:
+        race = db.query(RaceData).filter_by(id=race_id).first()
+        
+        # Get all drivers for this race
+        drivers = db.query(RaceData)\
+            .filter_by(race_title=race.race_title, date=race.date)\
+            .order_by(RaceData.heat, RaceData.run)\
+            .all()
+        
+        return jsonify({
+            "race_id": race_id,
+            "race_title": race.race_title,
+            "drivers": [{
+                "id": d.id,
+                "heat": d.heat,
+                "run": d.run,
+                "driver_name": d.driver_name,
+                "driver_club": d.driver_club,
+                "finishtime": d.finishtime,
+                "status": d.status,
+                "inter_1": d.inter_1,
+                "inter_2": d.inter_2,
+                "penalty": d.penalty,
+                "vehicle": d.vehicle
+            } for d in drivers]
+        })
 
 @app.route("/api/realtime_data", methods=['POST'])
 def realtime_data_update():
     from models import RealTimeData, RealTimeState, RealTimeKvaliData
-    import json
-    
+    import json    
 
     data = request.json
 
     
-    try:
-        with get_db() as db:
-            token = data["token"]
 
-            if use_auth and not check_creds(token):
-                return jsonify({"error": "Authentication Failed"}), 401
+    with get_db() as db:
+        token = data["token"]
 
-            race_data = data["data"]
+        if use_auth and not check_creds(token):
+            return jsonify({"error": "Authentication Failed"}), 401
+
+        race_data = data["data"]
+        
+        if data["single_event"]:
+            from utils.utils import get_kvali, get_finale_live
             
-            if data["single_event"]:
-                from utils.utils import get_kvali
+            race_config = race_data[0]["race_config"]
+            race_title = race_config["TITLE_2"]
+            mode = race_config["MODE"]
+            heat = race_config["HEAT"]
+            if "kvalifisering" in race_title.lower():
+                kvali_data = get_kvali(race_title)
+                mode = "kvali"
+            elif "finale" in race_title.lower():
+                finale_data = get_finale_live(race_title)
+                mode = "finale"
+            else:
+                kvali_data = None
+            
+            db.query(RealTimeData).filter(RealTimeData.race_title == race_title, RealTimeData.heat == heat).delete()
+            
+            active_driver_1 = None
+            active_driver_2 = None
+            json_data = {}
+            for b in range(1, len(race_data)):
+                count = 0
                 
+                for t in race_data[b]["drivers"]:
+                    count += 1
 
+                    if t["active"] == True:
+                        if count == 1:
+                            active_driver_1 = t["id"]
+                        elif count == 2:
+                            active_driver_2 = t["id"]
+
+
+                    try:
+                        print(t["status"])
+                    except:
+                        t["status"] = "None"
+
+                    current_race_data = RealTimeData(
+                        cid=t["id"],
+                        race_title=race_title,
+                        heat=heat,
+                        mode=mode,
+                        driver_name=f"{t['first_name']} {t['last_name']}",
+                        driver_club=t["club"],
+                        finishtime=float(t['time_info']['FINISHTIME']),
+                        inter_1=float(t['time_info']['INTER_1']),
+                        inter_2=float(t['time_info']['INTER_2']),
+                        penalty=float(t['time_info']['PENELTY']),
+                        speed=float(t['time_info']['SPEED']),
+                        vehicle=t['vehicle'],
+                        status=t['status'],
+                    )
+                    db.add(current_race_data)
+
+            #Change active race
+            active_race_stats = db.query(RealTimeState).first()
+            if active_race_stats is None:
+                active_race_stats = RealTimeState(
+                        active_driver_1=0,
+                        active_driver_2=0,
+                        active_event="None",
+                        active_race="None",
+                        active_heat="None",
+                        active_mode="None",
+                        active_race_state=False,
+                        display_quali=False
+                    )
+                db.add(active_race_stats)
+                db.commit()
+
+            active_race_stats.active_race = race_title
+            active_race_stats.active_heat = heat
+
+            if active_driver_1 is not None or active_driver_2 is not None:
+                active_race_stats.active_driver_1 = active_driver_1
+                active_race_stats.active_driver_2 = active_driver_2
+            
+            else:
+                active_race_stats.active_driver_1 = 0
+                active_race_stats.active_driver_2 = 0
+
+            db.commit()
+            
+            
+
+            realtime_state = db.query(RealTimeState).first()
+            realtime_state_dict = realtime_state.to_dict()
+
+            if realtime_state != None:
+                realtime_state_dict = realtime_state.to_dict()
+
+            real_time_data_objects = db.query(RealTimeData).filter(RealTimeData.race_title==realtime_state_dict["active_race"], RealTimeData.heat==realtime_state_dict["active_heat"]).all()
+            race_data = [rdata.to_dict() for rdata in real_time_data_objects]
+            kvali__crit_data = db.query(RealTimeKvaliData.kvali_num).filter(race_title==race_title).first()
+            
+            print(kvali__crit_data)
+
+
+            json_data["state"] = realtime_state_dict
+
+            json_data["driver_data"] = race_data
+            if mode == "kvali":
+                json_data["kvali_data"] = kvali_data
+            try:
+                json_data["kvali_crit"] = kvali__crit_data[0]
+            except:
+                json_data["kvali_crit"] = 99
+            
+            socketio.emit('message', {'data': json.dumps(json_data)}, room='live_data', namespace='/live_data')
+
+        else:
+            from models import live_event_liste
+
+            db.query(RealTimeData).delete()
+            kvali_nr_dict = json.loads(data["kvali_ranking"])
+            db.query(RealTimeKvaliData).delete()
+            db.query(live_event_liste).delete()
+
+            for a in kvali_nr_dict:
+                db.add(RealTimeKvaliData(id=a["id"], kvali_num=a["kvalinr"], race_title=a["event"]))
+
+            events = json.loads(data["event_data"])
+
+               
+            for b in events:
+                db.add(live_event_liste(id=b["order"], event_navn=b["event_name"], heat=b["run"], mode=b["mode"]))
+
+            for race_data in data["data"]:
                 race_config = race_data[0]["race_config"]
                 race_title = race_config["TITLE_2"]
                 mode = race_config["MODE"]
                 heat = race_config["HEAT"]
-                
-                if "kvalifisering" in race_title.lower():
-                    kvali_data = get_kvali(race_title)
-                
+
                 db.query(RealTimeData).filter(RealTimeData.race_title == race_title, RealTimeData.heat == heat).delete()
-                
-                active_driver_1 = None
-                active_driver_2 = None
-                json_data = {}
 
                 for b in range(1, len(race_data)):
-                    count = 0
+
                     for t in race_data[b]["drivers"]:
-                        count += 1
-
-                        if t["active"] == True:
-                            if count == 1:
-                                active_driver_1 = t["id"]
-                            elif count == 2:
-                                active_driver_2 = t["id"]
-
+                        status = t.get("status")
                         current_race_data = RealTimeData(
                             cid=t["id"],
                             race_title=race_title,
@@ -571,83 +1018,15 @@ def realtime_data_update():
                             penalty=float(t['time_info']['PENELTY']),
                             speed=float(t['time_info']['SPEED']),
                             vehicle=t['vehicle'],
-                            status=t['status'],
+                            status=status,
                         )
                         db.add(current_race_data)
+            
+            db.commit()
 
-                #Change active race
-                active_race_stats = db.query(RealTimeState).first()
-                active_race_stats.active_race = race_title
-                active_race_stats.active_heat = heat
-
-                if active_driver_1 is not None or active_driver_2 is not None:
-                    active_race_stats.active_driver_1 = active_driver_1
-                    active_race_stats.active_driver_2 = active_driver_2
-                
-                else:
-                    active_race_stats.active_driver_1 = 0
-                    active_race_stats.active_driver_2 = 0
-
-                db.commit()
-                
-
-                realtime_state = db.query(RealTimeState).first().to_dict()
-                real_time_data_objects = db.query(RealTimeData).filter(RealTimeData.race_title==realtime_state["active_race"], RealTimeData.heat==realtime_state["active_heat"]).all()
-                race_data = [rdata.to_dict() for rdata in real_time_data_objects]
-                kvali__crit_data = db.query(RealTimeKvaliData.kvali_num).filter(race_title==race_title).first()
-                
-                json_data["state"] = realtime_state
-                json_data["driver_data"] = race_data
-                json_data["kvali_data"] = kvali_data
-                try:
-                    json_data["kvali_crit"] = kvali__crit_data[0]
-                except:
-                    json_data["kvali_crit"] = 99
-                
-                socketio.emit('message', {'data': json.dumps(json_data)}, room='live_data', namespace='/live_data')
-
-            else:
-                db.query(RealTimeData).delete()
-                kvali_nr_dict = json.loads(data["kvali_ranking"])
-                db.query(RealTimeKvaliData).delete()
-                for a in kvali_nr_dict:
-                    db.add(RealTimeKvaliData(id=a["id"], kvali_num=a["kvalinr"], race_title=a["event"]))
-
-                for race_data in data["data"]:
-                    race_config = race_data[0]["race_config"]
-                    race_title = race_config["TITLE_2"]
-                    mode = race_config["MODE"]
-                    heat = race_config["HEAT"]
-
-                    db.query(RealTimeData).filter(RealTimeData.race_title == race_title, RealTimeData.heat == heat).delete()
-
-                    for b in range(1, len(race_data)):
-                        for t in race_data[b]["drivers"]:
-                            status = t.get("status")
-                            current_race_data = RealTimeData(
-                                cid=t["id"],
-                                race_title=race_title,
-                                heat=heat,
-                                mode=mode,
-                                driver_name=f"{t['first_name']} {t['last_name']}",
-                                driver_club=t["club"],
-                                finishtime=float(t['time_info']['FINISHTIME']),
-                                inter_1=float(t['time_info']['INTER_1']),
-                                inter_2=float(t['time_info']['INTER_2']),
-                                penalty=float(t['time_info']['PENELTY']),
-                                speed=float(t['time_info']['SPEED']),
-                                vehicle=t['vehicle'],
-                                status=status,
-                            )
-                            db.add(current_race_data)
-                
-                db.commit()
-
-        return jsonify({"message": "Data updated successfully"}), 200
+    return jsonify({"message": "Data updated successfully"}), 200
     
-    except Exception as e:
-        print(f"Error in realtime_data_update: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+
 
 
 @app.route('/event/<year>/<event_name>/<race_type>')
@@ -663,6 +1042,21 @@ def event_overview(year, event_name, race_type):
     elif str(race_type).lower() == "stige":
         event_data, table_data, event_date = get_ladder_data(year, event_name, race_type)
         return render_template('event_overview_stige.html', events=events, event_name=event_name, event_data=event_data, table_data=table_data, event_date=event_date, live_event_state=live_event_state)
+    elif str(race_type).lower() == "finale":
+        table_data, event_date = get_finale(year, event_name, race_type)
+        return render_template('event_overview_finale.html', events=events, event_name=event_name, table_data=table_data, event_date=event_date, live_event_state=live_event_state)
+
+@app.route('/hall-of-fame')
+def hall_of_fame():
+    from utils.utils import get_top_drivers_stige, get_top_drivers_finale
+
+    events, live_event_state = get_event_race_data()
+
+    stige_points=get_top_drivers_stige()
+    finale_points=get_top_drivers_finale()
+
+    return render_template('hall_of_fame.html', events=events, live_event_state=live_event_state,
+                                                stige_points=stige_points, finale_points=finale_points)
 
 @app.route('/live/pdf')
 def live_pdf():
@@ -680,13 +1074,14 @@ def live_pdf():
 
     return render_template('live_pdf.html', pdfs=pdfs, events=events, live_event_state=live_event_state)
 
-
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    
+    events, live_event_state = get_event_race_data()
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
+       
         
         if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
             session['user_id'] = 1
@@ -695,12 +1090,11 @@ def login():
         flash('Invalid credentials')
         return redirect("/login")
         
-    return render_template('login.html')
+    return render_template('login.html', events=events, live_event_state=live_event_state)
 
 @app.route('/admin', methods=['GET'])
 @login_required
 def admin_page():
-        
     return render_template('admin.html')
 
 @app.route('/admin/admin_live_config', methods=['GET', 'POST'])
@@ -725,6 +1119,7 @@ def admin_live_config():
         event_name = data.get("eventName")
         visibility_state = data.get("visibilityState")
         clear_data = bool(data.get("remove_current_data"))
+        displayquali = bool(data.get("displayqualiCheckbox"))
 
         if clear_data:
             with get_db() as db:
@@ -732,9 +1127,10 @@ def admin_live_config():
                 db.query(RealTimeKvaliData).delete()
                 db.query(RealTimeState).delete()
                 db.commit()
+            
 
         existing_pdfs = request.form.getlist('existing_pdfs[]')
-        
+
         if existing_pdfs == []:
             with get_db() as db:
                 realtime_state = db.query(PDFS).first()
@@ -756,6 +1152,9 @@ def admin_live_config():
 
             realtime_state.active_event = event_name 
             realtime_state.active_race_state = int(visibility_state)
+            realtime_state.display_quali = displayquali
+
+
 
             for pdf_id, display_name in existing_pdf_data.items():
                 pdf = db.query(PDFS).filter_by(id=int(pdf_id)).first()
@@ -800,9 +1199,15 @@ def admin_live_config():
         realtime_state = db.query(RealTimeState).first()
         existing_pdfs = db.query(PDFS).all()
         
+        if realtime_state.display_quali == False:
+            quli_state = ""
+        else:
+            quli_state = "checked"
+
         event = {
             'name': realtime_state.active_event if realtime_state else '',
-            'visibility': realtime_state.active_race_state if realtime_state else 0
+            'visibility': realtime_state.active_race_state if realtime_state else 0,
+            'display_quali': quli_state,
         }
         
         pdf_list = [
@@ -813,34 +1218,13 @@ def admin_live_config():
             }
             for pdf in existing_pdfs
         ]
-
         return render_template(
             'admin_live_config.html',  # Make sure this template name matches your actual template
             event=event,
             existing_pdfs=pdf_list
         )
 
-    with get_db() as db:
-        realtime_state = db.query(RealTimeState).first()
-        existing_pdfs = db.query(RealTimeData).all()
-        
-        if realtime_state:
-            realtime_state = realtime_state.to_dict()
-        
-        pdf_list = [
-            {
-                'id': pdf.id,
-                'filename': os.path.basename(pdf.path) if hasattr(pdf, 'path') else '',
-                'display_name': pdf.name if hasattr(pdf, 'name') else ''
-            }
-            for pdf in existing_pdfs
-        ]
 
-    return render_template(
-        'admin_live_config.html',
-        event=realtime_state,
-        existing_pdfs=pdf_list
-    )
 @app.route('/event/<event_name>/race/<race_title>')
 def race_details(event_name: str, race_title: str):
     events, live_event_state = get_event_race_data()
@@ -980,81 +1364,112 @@ def get_drivers():
 
 @app.route("/upload-data/", methods=['POST'])
 def upload_data():
+    from models import RaceClasses
     data = request.json
-    db = SessionLocal()
-    token = request.headers.get("token")
+    class_types = []
 
-    if use_auth:
-        if not check_creds(token):
-            return jsonify({"error": "Authentication Failed"}), 401 
-    try:
-        for event in data:
-            event_config = event[0]['race_config']
-            event_date = date.fromisoformat(event_config['DATE'])
-            event_title = event_config['TITLE_1']
-            race_title = event_config['TITLE_2']
-            mode = int(event_config['MODE'])
-            heat = int(event_config['HEAT'])
+    class_strings = ["kval", "finale", "stige", "kvalifisering"]
 
-            for race in event[1:]:
-                for k, driver in enumerate(race['drivers']):
-                    driver_name = driver['first_name'] + " " + driver['last_name']
-                    driver_club = driver['club']
+    with get_db() as db:
 
-                    c_id = driver["id"]
-                    pair_id = (k + 1)
+        token = request.headers.get("token")
+        race_classes = db.query(RaceClasses).all()
+        for a in race_classes:
+            class_types.append(a.name)
 
-                    existing_entry = db.query(RaceData).filter_by(
-                        date=event_date,
-                        event_title=event_title,
-                        race_title=race_title,
-                        heat=heat,
-                        mode=mode,
-                        driver_name=driver_name
-                    ).first()
+        if use_auth:
+            if not check_creds(token):
+                return jsonify({"error": "Authentication Failed"}), 401 
+        try:
+            for event in data:
+                event_config = event[0]['race_config']
+                event_date = date.fromisoformat(event_config['DATE'])
+                event_title = event_config['TITLE_1']
+                race_title = event_config['TITLE_2']
 
-                    if existing_entry:
-                        existing_entry.driver_club = driver_club
-                        existing_entry.finishtime = float(driver['time_info']['FINISHTIME'])
-                        existing_entry.inter_1 = float(driver['time_info']['INTER_1'])
-                        existing_entry.inter_2 = float(driver['time_info']['INTER_2'])
-                        existing_entry.penalty = float(driver['time_info']['PENELTY'])
-                        existing_entry.speed = float(driver['time_info']['SPEED'])
-                        existing_entry.vehicle = driver['vehicle']
-                        existing_entry.status = driver.get('status')
+                race_title_lst_string = race_title.split()
+                if race_title_lst_string[len(race_title_lst_string) - 1].lower() in class_strings:
+                    if race_title_lst_string[len(race_title_lst_string) - 2] == "-":
+                        class_string = race_title.rsplit(' ', 2)[0]
+
+                        new_race_class_entry = RaceClasses(name=class_string)
                     else:
-                        
-                        new_entry = RaceData(
+                        class_string = race_title.rsplit(' ', 1)[0]
+
+
+
+                    
+                    new_race_class_entry = RaceClasses(name=class_string)
+
+                    if class_string not in class_types:
+                        db.add(new_race_class_entry) 
+                        class_types.append(class_string)
+                else:
+                    class_string = "None"
+
+                mode = int(event_config['MODE'])
+                heat = int(event_config['HEAT'])
+
+                for race in event[1:]:
+                    for k, driver in enumerate(race['drivers']):
+                        driver_name = driver['first_name'] + " " + driver['last_name']
+                        driver_club = driver['club']
+
+                        c_id = driver["id"]
+                        pair_id = (k + 1)
+
+                        existing_entry = db.query(RaceData).filter_by(
                             date=event_date,
-                            cid=c_id,
                             event_title=event_title,
                             race_title=race_title,
                             heat=heat,
                             mode=mode,
-                            driver_name=driver_name,
-                            driver_club=driver_club,
-                            pair_id=race['race_id'],
-                            finishtime=float(driver['time_info']['FINISHTIME']),
-                            inter_1=float(driver['time_info']['INTER_1']),
-                            inter_2=float(driver['time_info']['INTER_2']),
-                            penalty=float(driver['time_info']['PENELTY']),
-                            speed=float(driver['time_info']['SPEED']),
-                            vehicle=driver['vehicle'],
-                            status=driver.get('status'),
-                            run=pair_id,
-                        )
-                        db.add(new_entry)
+                            driver_name=driver_name
+                        ).first()
 
-        db.commit()
-        return jsonify({"message": "Data uploaded successfully"}), 200
-    except Exception as e:
-        db.rollback()
-        print(str(e))
-        return jsonify({"error": str(e)}), 500
-    finally:
-        db.close()
+                        if existing_entry:
+                            existing_entry.driver_club = driver_club
+                            existing_entry.finishtime = float(driver['time_info']['FINISHTIME'])
+                            existing_entry.inter_1 = float(driver['time_info']['INTER_1'])
+                            existing_entry.inter_2 = float(driver['time_info']['INTER_2'])
+                            existing_entry.penalty = float(driver['time_info']['PENELTY'])
+                            existing_entry.speed = float(driver['time_info']['SPEED'])
+                            existing_entry.vehicle = driver['vehicle']
+                            existing_entry.status = driver.get('status')
+                        else:
+                            
+                            new_entry = RaceData(
+                                date=event_date,
+                                cid=c_id,
+                                event_title=event_title,
+                                race_title=race_title,
+                                heat=heat,
+                                mode=mode,
+                                driver_name=driver_name,
+                                driver_club=driver_club,
+                                pair_id=race['race_id'],
+                                finishtime=float(driver['time_info']['FINISHTIME']),
+                                inter_1=float(driver['time_info']['INTER_1']),
+                                inter_2=float(driver['time_info']['INTER_2']),
+                                penalty=float(driver['time_info']['PENELTY']),
+                                speed=float(driver['time_info']['SPEED']),
+                                vehicle=driver['vehicle'],
+                                status=driver.get('status'),
+                                run=pair_id,
+                                race_class=class_string
+                            )
+                            db.add(new_entry)
 
-        init_db()
+            db.commit()
+            return jsonify({"message": "Data uploaded successfully"}), 200
+        except Exception as e:
+            db.rollback()
+            print(str(e))
+            return jsonify({"error": str(e)}), 500
+        finally:
+            db.close()
+
+            init_db()
 
 if __name__ == '__main__':
 

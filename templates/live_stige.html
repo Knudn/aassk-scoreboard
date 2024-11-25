@@ -3,32 +3,498 @@
 {% with active_page='live' %}
     {% include 'toggle_live_switch.html' %}
 {% endwith %}
-<h1>Welcome to the Live Page</h1>
-<title>Flask-SocketIO Test</title>
-SocketIO Client for 'live' Room
+
+<style>
+
+    .table-wrapper {
+        overflow-x: auto;
+    }
+    table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+    th, td {
+        padding: 0.75rem 0.5rem;
+        text-align: left;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    th {
+        background-color: #f3f4f6;
+        font-weight: 600;
+    }
+    tbody tr:last-child td {
+        border-bottom: none;
+    }
+    .qualify-line {
+        text-align: center;
+        padding: 1px;
+        position: relative;
+    }
+    .qualify-line::before,
+    .qualify-line::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        width: 40%;
+        height: 3px;
+        background-color: #1170ff;
+    }
+    .qualify-line::before {
+        left: 0;
+    }
+    .qualify-line::after {
+        right: 0;
+    }
+    .qualify-text {
+        display: inline-block;
+        padding: 0 0.75rem;
+        background-color: white;
+        position: relative;
+        z-index: 1;
+        font-weight: 500;
+        color: #6b7280;
+        font-size: 0.875rem;
+    }
+    @media (min-width: 1024px) {
+        .site_padding {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+    }
+    .driver-name {
+        font-size: 1.25rem; /* Starting font size */
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .pair-number {
+        font-size: 1.25rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+    }
+    .driver-container {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    @media (max-width: 640px) {
+            .text-responsive {
+                font-size: 0.75rem;
+            }
+            .mobile_hide {
+                display: none;
+            }
+        }
+        @media (min-width: 641px) and (max-width: 1024px) {
+            .text-responsive {
+                font-size: 0.875rem;
+            }
+        }
+        @media (min-width: 1025px) {
+            .text-responsive {
+                font-size: 1rem;
+            }
+        }
+</style>
+
+<div class="container mx-auto site_padding">
+    <div id="activeRaceInfo" class="rounded-lg max-w-3xl mx-auto text-center mb-3">
+        <!-- Active race information will be inserted here -->
+    </div>
+
+    <div id="currentRace" class="bg-white rounded-lg shadow-md p-4 max-w-3xl mx-auto">
+        <div id="activeDrivers" class="grid grid-cols-7 items-stretch">
+            <!-- Active drivers will be inserted here -->
+        </div>
+    </div>
+
+    <div id="startlist_data" class="mt-4">
+        <div class="relative overflow-x-auto shadow-md sm:rounded-lg">
+            <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                <tbody id="startlist_entries"></tbody>
+            </table>
+        </div>
+    </div>
+
+
+      <!-- Accordion Item 1 -->
+<div class="border-b border-slate-200  rounded-md shadow-md mt-3 bg-white">
+    <button onclick="toggleAccordion(1)" class="text-center w-full flex justify-between items-center py-5 text-slate-800">
+      <span class="text-center" style="display: table; margin: 0 auto">Kvalifisering - Kombinerte Bestetid</span>
+      <span id="icon-1" class="text-slate-800 transition-transform duration-300">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4">
+          <path fill-rule="evenodd" d="M11.78 9.78a.75.75 0 0 1-1.06 0L8 7.06 5.28 9.78a.75.75 0 0 1-1.06-1.06l3.25-3.25a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06Z" clip-rule="evenodd" />
+        </svg>
+      </span>
+    </button>
+    <div id="content-1" class="max-h-0 overflow-hidden transition-all duration-300 ease-in-out">
+      <div class="text-sm text-slate-500">
+        <div id="kvali_data" class="mt-4">
+            <div class="relative overflow-x-auto shadow-md sm:rounded-lg">
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="py-2 px-3">#</th>
+                            <th class="py-2 px-3">Navn</th>
+                            <th class="py-2 px-3 mobile_hide">Kjøretøy</th>
+                            <th class="py-2 px-3">Best Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="kvali_data_entries">
+    
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    
+      </div>
+    </div>
+  </div>
+   
+   
+  <script>
+    function toggleAccordion(index) {
+      const content = document.getElementById(`content-${index}`);
+      const icon = document.getElementById(`icon-${index}`);
+   
+      // SVG for Down icon
+      const downSVG = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4">
+          <path fill-rule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+        </svg>
+      `;
+   
+      // SVG for Up icon
+      const upSVG = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4">
+          <path fill-rule="evenodd" d="M11.78 9.78a.75.75 0 0 1-1.06 0L8 7.06 5.28 9.78a.75.75 0 0 1-1.06-1.06l3.25-3.25a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06Z" clip-rule="evenodd" />
+        </svg>
+      `;
+   
+      // Toggle the content's max-height for smooth opening and closing
+      if (content.style.maxHeight && content.style.maxHeight !== '0px') {
+        content.style.maxHeight = '0';
+        icon.innerHTML = upSVG;
+      } else {
+        content.style.maxHeight = content.scrollHeight + 'px';
+        icon.innerHTML = downSVG;
+      }
+    }
+  </script>
+
+</div>
+
+
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 <script>
-    const socket = io('http://192.168.20.218:5000/live_data');
+    const socket = io('/live_data');
 
     socket.on('connect', () => {
         console.log('Connected to server');
+        
+        const deviceId = 'device_' + Math.random().toString(36).substr(2, 9);
+        socket.emit('device_connected', { deviceId: deviceId });
+    });
+
+    socket.on('server_response', (data) => {
+        let parsedData;
+        try {
+            parsedData = typeof data === 'object' ? data : JSON.parse(data);
+            if (parsedData.data && typeof parsedData.data === 'string') {
+                parsedData = JSON.parse(parsedData.data);
+            }
+        } catch (error) {
+            console.error('Error parsing data:', error);
+            return;
+        }
+        console.log(parsedData)
+        updateRaceData(parsedData);
     });
 
     socket.on('message', (data) => {
-        console.log('Received message:', data.data);
-        // Handle the received data here (e.g., update UI)
+        console.log('Received message:', data);
+        let parsedData;
+        try {
+            parsedData = typeof data === 'object' ? data : JSON.parse(data);
+            if (parsedData.data && typeof parsedData.data === 'string') {
+                parsedData = JSON.parse(parsedData.data);
+            }
+        } catch (error) {
+            console.error('Error parsing data:', error);
+            return;
+        }
+        updateRaceData(parsedData);
     });
 
-    // Example of sending a message to the server
-    function sendMessage(message) {
-        socket.emit('message', message);
+    function convertMilliseconds(ms) {
+        const seconds = (ms / 1000).toFixed(3);
+        const minutes = Math.floor(seconds / 60);
+        
+        if (minutes > 0) {
+            const remainingSeconds = (seconds % 60).toFixed(3);
+            return `${minutes}:${remainingSeconds.padStart(6, '0')}`;
+        } else {
+            return seconds;
+        }
+    }
+
+    function updateRaceData(raceData) {
+        if (!raceData || !raceData.driver_data || !raceData.state) {
+            console.error('Invalid race data structure');
+            return;
+        }
+
+        const { driver_data, state, kvali_data, kvali_crit} = raceData;
+        drivers_num = driver_data.length;
+        activeDriver1 = driver_data.find(driver => driver.cid === state.active_driver_1);
+        activeDriver2 = driver_data.find(driver => driver.cid === state.active_driver_2);
+
+        const pairNumber = Math.floor(driver_data.indexOf(activeDriver1) / 2) + 1;
+
+        // Update active race information
+        document.getElementById('activeRaceInfo').innerHTML = `
+            <h2 class="text-2xl font-bold mb-2">${state.active_race}</h2>
+            <p class="text-lg">Run: ${state.active_heat} | Førere: ${drivers_num}</p>
+        `;
+
+        color1 = 'black';
+        color2 = 'black';
+
+        if (activeDriver1 != null) {
+
+            if (activeDriver1.penalty == 1) {
+                finishtime_msg = 'DNS';
+                color1 = 'red';
+            } else if (activeDriver1.penalty == 2) {
+                finishtime_msg = 'DNF';
+                color1 = 'red';
+            } else if (activeDriver1.penalty == 3) {
+                finishtime_msg = 'DSQ';
+                color1 = 'red';
+            } else {
+                finishtime_msg = convertMilliseconds(activeDriver1.finishtime);
+            }
+        } else {
+            activeDriver1 = { driver_name: 'N/A', vehicle: 'N/A', finishtime: 'N/A' };
+            finishtime_msg = 'N/A';
+        }
+
+        if (activeDriver2 != null) {
+            if (activeDriver2.penalty == 1) {
+                finishtime_msg2 = 'DNS';
+                color2 = 'red';
+            } else if (activeDriver2.penalty == 2) {
+                finishtime_msg2 = 'DNF';
+                color2 = 'red';
+            } else if (activeDriver2.penalty == 3) {
+                finishtime_msg2 = 'DSQ';
+                color2 = 'red';
+            } else {
+                finishtime_msg2 = convertMilliseconds(activeDriver2.finishtime);
+                
+            }
+        } else {
+            activeDriver2 = { driver_name: 'N/A', vehicle: 'N/A', finishtime: 'N/A' };
+            finishtime_msg2 = 'N/A';
+        }
+
+        if (activeDriver1.finishtime < activeDriver2.finishtime) {
+            color1 = 'green';
+            color2 = 'red';
+        } else if (activeDriver1.finishtime > activeDriver2.finishtime) {
+            color1 = 'red';
+            color2 = 'green';
+        }
+
+        if (activeDriver1.penalty != 0) {
+            color1 = 'red';
+            color2 = 'green';
+        } else if (activeDriver2.penalty != 0) {
+            color2 = 'red';
+            color1 = 'green';
+        }
+
+        // Update active drivers
+        document.getElementById('activeDrivers').innerHTML = `
+        
+            <div class="col-span-3 driver-container" style="text-align: center">
+                <div class="driver-name font-bold mb-2" style="color: ${color1};">${activeDriver1 ? activeDriver1.driver_name : 'N/A'}</div>
+                <div class="other_info text-sm truncate">${activeDriver1 ? activeDriver1.vehicle : 'N/A'} | ${finishtime_msg}</div>
+            </div>
+            <div class="flex items-center justify-center">
+                <div class="pair-number">${pairNumber}</div>
+            </div>
+            <div class="col-span-3 driver-container" style="text-align: center">
+                <div class="driver-name font-bold mb-2" style="color: ${color2};">${activeDriver2 ? activeDriver2.driver_name : 'N/A'}</div>
+                <div class="other_info text-sm truncate">${activeDriver2 ? activeDriver2.vehicle : 'N/A'} | ${finishtime_msg2}</div>
+            </div>
+        `;
+
+        // Auto-scale text for driver names
+        const driverNames = document.querySelectorAll('.driver-name');
+        const other_info = document.querySelectorAll('.other_info');
+        driverNames.forEach(name => {
+            let fontSize = 1.25;
+            name.style.fontSize = `${fontSize}rem`;
+            
+            while (name.scrollWidth > name.offsetWidth && fontSize > 0.5) {
+                fontSize -= 0.1;
+                name.style.fontSize = `${fontSize}rem`;
+            }
+        });
+        other_info.forEach(name => {
+            let fontSize = 0.80;
+            name.style.fontSize = `${fontSize}rem`;
+            
+            while (name.scrollWidth > name.offsetWidth && fontSize > 0.5) {
+                fontSize -= 0.1;
+                name.style.fontSize = `${fontSize}rem`;
+            }
+        });
+        
+
+        entry_count = 0;
+        //Create startlist table
+        var startlist_table = document.getElementById('startlist_data');
+        var entry_count = 0;
+        var driver_1, driver_2;
+
+        function oddOrEven(num) {
+            return num % 2 === 0 ? "even" : "odd";
+        }
+        driver_pair_count = 0
+        document.getElementById('startlist_entries').innerHTML = ""
+        raceData.driver_data.forEach(function (driver) {
+        entry_count += 1;
+        if (oddOrEven(entry_count) == "even") {
+            driver_2 = driver;
+            driver_pair_count += 1;
+
+            color1 = 'black';
+            color2 = 'black';
+
+            if (driver_1.penalty == 1) {
+                finishtime_msg = 'DNS';
+                color1 = 'red';
+                color2 = 'green';
+            } else if (driver_1.penalty == 2) {
+                finishtime_msg = 'DNF';
+                color1 = 'red';
+                color2 = 'green';
+            } else if (driver_1.penalty == 3) {
+                finishtime_msg = 'DSQ';
+                color1 = 'red';
+                color2 = 'green';
+            } else {
+                finishtime_msg = convertMilliseconds(driver_1.finishtime);
+            }
+
+            if (driver_2.penalty == 1) {
+                finishtime_msg2 = 'DNS';
+                color2 = 'red';
+                color1 = 'green';
+            } else if (driver_2.penalty == 2) {
+                finishtime_msg2 = 'DNF';
+                color2 = 'red';
+                color1 = 'green';
+            } else if (driver_2.penalty == 3) {
+                finishtime_msg2 = 'DSQ';
+                color2 = 'red';
+                color1 = 'green';
+            } else {
+                finishtime_msg2 = convertMilliseconds(driver_2.finishtime);
+            }
+
+
+            if (driver_1.finishtime < driver_2.finishtime && driver_1.penalty == 0) {
+                color1 = 'green';
+                color2 = 'red';
+            } else if (driver_1.finishtime > driver_2.finishtime && driver_2.penalty == 0) {
+                color1 = 'red';
+                color2 = 'green';
+            }
+
+            if (activeDriver1.cid == driver_1.cid || activeDriver2.cid == driver_1.cid) {
+                color_active_session = '#00ffff42';
+            } else {
+                color_active_session = 'none';
+            }
+            
+            document.getElementById('startlist_entries').innerHTML += `
+                <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                    <td class="py-2 px-3 text-right" style="width: 47%; border-right: 4px solid ${color1};">
+                        <div class="font-medium text-gray-900 dark:text-white truncate text-responsive">${driver_1.driver_name} [${driver_1.cid}] </div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">${finishtime_msg}</div>
+                    </td>
+                    <td class="" style="width: 6%; background-color: ${color_active_session}">
+                        <div class="text-center font-semibold text-gray-800 dark:text-gray-200 text-lg">
+                            ${driver_pair_count}
+                        </div>
+                    </td>
+                    <td class="py-2 px-3 text-left" style="width: 47%; border-left: 4px solid ${color2};">
+                        
+                        <div class="font-medium text-gray-900 dark:text-white truncate text-responsive">[${driver_2.cid}] ${driver_2.driver_name}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">${finishtime_msg2}</div>
+                    </td>
+                </tr>
+            `;
+        } else {
+            driver_1 = driver;
+        }
+    
+        
+    });
+    kvali_entry_num = 0;
+    document.getElementById('kvali_data_entries').innerHTML = ``;
+    raceData.kvali_data.forEach(function (driver) { 
+
+        if (driver.penalty == 1) {
+            driver.finishtime = 'DNS';
+        } else if (driver.penalty == 2) {
+            driver.finishtime = 'DNF';
+        } else if (driver.penalty == 3) {
+            driver.finishtime = 'DSQ';
+        } else {
+            driver.finishtime = convertMilliseconds(driver.finishtime);
+        }
+        kvali_entry_num += 1;
+
+        document.getElementById('kvali_data_entries').innerHTML += `
+                <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                    <td class="py-2 px-3 text-center">
+                        ${kvali_entry_num}
+                    </td>
+                    <td class="py-2 px-3">
+                        ${driver.driver_name}
+                    </td>
+                    <td class="py-2 px-3 mobile_hide">
+                        ${driver.vehicle}
+                    </td>
+                    <td class="py-2 px-3">
+                        ${driver.finishtime}
+                    </td>
+                </tr>
+            `;
+        if (kvali_entry_num == kvali_crit) {
+            document.getElementById('kvali_data_entries').innerHTML += `
+                    <tr>
+                        <td colspan="4" class="qualify-line">
+                            <span class="qualify-text">Kvalifisering til Stige</span>
+                        </td>
+                    </tr>
+            `;
+        }
+    });
+    
+    }
+    function oddOrEven(x) {
+        return ( x & 1 ) ? "odd" : "even";
     }
 </script>
-</head>
-<body>
-<h1>Flask-SocketIO Test</h1>
-
-</body>
 
 {% endblock %}

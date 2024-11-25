@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+
+{% block title %}Race Results{% endblock %}
+
+{% block head %}
+{{ super() }}
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+
+    .accordion-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease-out;
+        text-align: center;
+    }
+    .accordion-content.active {
+        max-height: 100%;
+    }
+    
+    .heat-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease-out;
+    }
+    .heat-content.active {
+        max-height: 100%;
+    }
+    .center {
+        margin-left: auto;
+        margin-right: auto;
+    }
+    .border_new {
+        border-width: 4px;
+        border-color: #52525228;
+    }
+    /* Add responsive table container */
+    .table-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    table {
+        width: 100%;
+    }
+    /* Adjust padding and font sizes for a more compressed look */
+    th, td {
+        padding: 0.5rem 0.25rem;
+        font-size: 0.5rem; /* Adjust font size as needed */
+    }
+    .stat_text_scaling {
+        font-size: 1.1rem;
+    }
+    @media (max-width: 570px) {
+            .stat_text_scaling {
+                font-size: 0.8rem;
+            }
+        }
+
+    @media (max-width: 600px) {
+        th, td {
+        padding: 0.1rem 0.1rem;
+        font-size: 0.1rem; /* Adjust font size as needed */
+        }
+        .px-6 {
+            padding-left: 0.5rem !important;
+            padding-right: 0.2rem !important;
+        }
+
+    }
+    @media (max-width: 1024px) {
+        .mobile_hide {
+            display: none;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="container mx-auto px-4 py-8 max-w-4xl">
+    <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">{{ event_name }}</h1>
+    <div id="racesContainer">
+        <!-- Race accordions will be dynamically inserted here -->
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+race_data = JSON.parse('{{ table_data | tojson | safe }}');
+
+drivers = []
+
+const events_titles = Object.keys(race_data);
+
+const event_date_day = JSON.parse('{{ event_date | tojson | safe }}');
+number_of_events = events_titles.length
+
+console.log(number_of_events, event_date_day.length)
+
+document.addEventListener('DOMContentLoaded', function() {
+    const header = document.querySelector('.text-3xl.font-bold.text-gray-800.mb-6.text-center');
+    console.log(header)
+    if (header) {
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'stat_text_scaling text-gray-700 mt-6 flex justify-center items-center';
+        infoDiv.innerHTML = `
+            <div class="items-center">
+                <span class="font-bold mr-2">Klasser:</span>
+                <span>${number_of_events}</span>
+            </div>
+            <div class="mx-6 h-6 w-px bg-gray-300"></div>
+            <div class="flex items-center" style="padding: 10px;">
+                <span class="font-bold mr-2">Sjåfører:</span>
+                <span id="drivers_num">0</span>
+            </div>
+            <div class="mx-6 h-6 w-px bg-gray-300"></div>
+            <div class="flex items-center">
+                <span class="font-bold mr-2">Dato:</span>
+                <span>${formatDate(event_date_day)}</span>
+            </div >
+        `;
+        header.appendChild(infoDiv);
+    }
+});
+
+function convertMilliseconds(ms) {
+    const seconds = (ms / 1000).toFixed(3);
+    const minutes = Math.floor(seconds / 60);
+    
+    if (minutes > 0) {
+        const remainingSeconds = (seconds % 60).toFixed(3);
+        return `${minutes}:${remainingSeconds.padStart(6, '0')}`;
+    } else {
+        return seconds;
+    }
+}
+
+function createRaceAccordion(raceName, raceData) {
+    const accordionItem = document.createElement('div');
+    accordionItem.className = 'mb-4 bg-white rounded-lg shadow-md overflow-hidden border_new';
+    
+    const header = document.createElement('div');
+    header.className = 'bg-gray-100 p-4 cursor-pointer flex justify-between items-center transition-colors duration-300 hover:bg-gray-200';
+    header.innerHTML = `
+        <span class="font-semibold text-lg center">${raceName}</span>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+        </svg>
+    `;
+    
+    const content = document.createElement('div');
+    content.className = 'accordion-content active p-4';
+    
+    // Create table
+    const table = document.createElement('table');
+    table.className = 'min-w-full divide-y divide-gray-200';
+    
+    // Create table header
+    const thead = document.createElement('thead');
+    thead.className = 'bg-gray-50';
+    thead.innerHTML = `
+        <tr>
+            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Navn</th>
+            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider mobile_hide">Kjøretøy</th>
+            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Tid</th>
+        </tr>
+    `;
+    
+    // Create table body
+    const tbody = document.createElement('tbody');
+    tbody.className = 'bg-white divide-y divide-gray-200';
+    
+    // Format time function
+    const formatTime = (ms) => {
+        const seconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        const milliseconds = ms % 1000;
+        return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
+    };
+    
+    index_num = 0
+    // Populate table with data
+    Object.entries(raceData).forEach(([startNumber, data], index) => {
+        index_num += 1
+        const row = document.createElement('tr');
+        row.className = index % 2 === 0 ? 'bg-white' : 'bg-gray-100';
+        if (data.penalty === 1) {
+            finishtime = "DNS"
+        } else if (data.penalty === 2) {
+            finishtime = "DNF"
+        } else if (data.penalty === 3) {
+            finishtime = "DSQ"
+        } else {
+            finishtime = formatTime(data.finishtime);
+        }
+        if (drivers.includes(data.name) === false) {
+            drivers.push(data.name)
+        }
+        row.innerHTML = `
+            <td class="text-center px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${index_num}</td>
+            <td class="text-center px-6 py-4 whitespace-nowrap text-sm text-gray-900">${data.name}</td>
+            <td class="text-center px-6 py-4 whitespace-nowrap text-sm text-gray-500 mobile_hide">${data.snowmobile}</td>
+            <td class="text-center px-6 py-4 whitespace-nowrap text-sm text-gray-500">${finishtime}</td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+    
+    // Assemble table
+    table.appendChild(thead);
+    table.appendChild(tbody);
+    content.appendChild(table);
+    
+    // Add click event listener to header
+    header.addEventListener('click', () => {
+        content.classList.toggle('hidden');
+        header.querySelector('svg').classList.toggle('rotate-180');
+    });
+    
+    accordionItem.appendChild(header);
+    accordionItem.appendChild(content);
+    
+    return accordionItem;
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toISOString().split('T')[0];
+}
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    const racesContainer = document.getElementById('racesContainer');
+    
+    Object.entries(race_data).forEach(([raceName, raceData]) => {
+        const accordion = createRaceAccordion(raceName, raceData);
+        racesContainer.appendChild(accordion);
+        
+    });
+    const driver_num_span = document.getElementById("drivers_num");
+    driver_num_span.innerHTML = drivers.length;
+
+})
+</script>
+{% endblock %}

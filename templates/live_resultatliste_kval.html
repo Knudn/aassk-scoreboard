@@ -207,11 +207,13 @@
                                                     {% set event_name_new = event_name + " Kvalifisering" %}
                                                     {% if kvali.race_title == event_name_new %}
                                                         {% if entry == kvali.kvali_num %}
-                                                        <tr>
-                                                            <td colspan="3" class="qualify-line">
-                                                                <span class="qualify-text">Kvalifisering til Stige</span>
-                                                            </td>
-                                                        </tr>
+                                                            {% if display_quali %}
+                                                            <tr>
+                                                                <td colspan="3" class="qualify-line">
+                                                                    <span class="qualify-text">Kvalifisering til Stige</span>
+                                                                </td>
+                                                            </tr>
+                                                            {% endif %}
                                                         {% endif %}
                                                     {% endif %}
                                                 {% endfor %}

@@ -8,6 +8,7 @@
 <script src="{{ url_for('static', filename='js/ladder/vendor.js') }}"></script>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/ladder/app.css') }}">
 
+
 <style>
 
     .tournament-bracket {
@@ -78,9 +79,7 @@ eventData.forEach((event, index) => {
 
 number_of_driver = drivers.length
 
-console.log(number_of_events)
-console.log(number_of_driver)
-{{ event_date }} //This is the date of the event
+{{ event_date }}
 
 document.addEventListener('DOMContentLoaded', function() {
     const header = document.querySelector('.max-w-3xl.mx-auto.text-center.mt-16');

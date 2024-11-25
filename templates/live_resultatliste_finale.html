@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block content %}
+{% with active_page='resultatliste' %}
+    {% include 'toggle_live_switch.html' %}
+{% endwith %}
+
+{% with live_page='finale' %}
+    {% include 'live_resultatliste_toggle.html' %}
+{% endwith %}
+
+<style>
+    .center {
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .txt_center {
+        text-align: center;
+    }
+
+    .table-wrapper {
+        overflow-x: auto;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    th, td {
+        padding: 0.75rem 0.5rem;
+        text-align: left;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    th {
+        background-color: #f3f4f6;
+        font-weight: 600;
+    }
+
+    tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    @media (max-width: 670px) {
+        th, td {
+            padding: 0.5rem 0.25rem;
+            font-size: 0.8rem;
+        }
+    }
+
+    @media (max-width: 480px) {
+        th, td {
+            padding: 0.4rem 0.2rem;
+            font-size: 0.7rem;
+        }
+    }
+</style>
+
+<div class="container mx-auto px-4 py-8">
+    <div class="max-w-3xl mx-auto space-y-6">
+        {% set events = {} %}
+        {% for race in race_titles %}
+            {% if race.race_title.endswith('Finale') %}
+                {% set event_name = ' '.join(race.race_title.split()[:-1]).replace(' - ', '') %}
+                {% if event_name not in events %}
+                    {% set _ = events.update({event_name: []}) %}
+                {% endif %}
+                {% if race.heat == 1 %}  {# Only collect races from heat 1 #}
+                    {% set _ = events[event_name].append(race) %}
+                {% endif %}
+            {% endif %}
+        {% endfor %}
+
+        {% for event_name, races in events.items() %}
+            <div class="bg-white shadow-md rounded-lg overflow-hidden mb-6">
+                <div class="px-6 py-4 bg-gray-100">
+                    <h2 class="text-xl font-semibold text-gray-800">{{ event_name[:-1] }}</h2>
+                </div>
+                <div class="p-4">
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Navn</th>
+                                    <th>Tid</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% set valid_races = [] %}
+                                {% set invalid_races = [] %}
+                                {% for race in races %}
+                                    {% if race.finishtime > 0 and race.penalty == 0 %}
+                                        {% set _ = valid_races.append(race) %}
+                                    {% else %}
+                                        {% set _ = invalid_races.append(race) %}
+                                    {% endif %}
+                                {% endfor %}
+                                {% set sorted_valid = valid_races|sort(attribute='finishtime') %}
+                                {% set sorted_invalid = invalid_races|sort(attribute='penalty') %}
+                                {% for race in sorted_valid + sorted_invalid %}
+                                    <tr>
+                                        <td>{{ loop.index }}</td>
+                                        <td>{{ race.driver_name }}</td>
+                                        <td>
+                                            {% if race.finishtime > 0 and race.penalty == 0 %}
+                                                {{ "{:.3f}".format(race.finishtime / 1000) }}
+                                            {% elif race.penalty == 1 %}
+                                                DNS
+                                            {% elif race.penalty == 2 %}
+                                                DNF
+                                            {% elif race.penalty == 3 %}
+                                                DSQ
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

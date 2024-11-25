@@ -213,6 +213,9 @@
             return;
         }
         console.log(parsedData)
+        if (!parsedData['driver_data'][0]["mode"].toLowerCase().includes("kvali")) {
+            location.reload();
+        }
         updateRaceData(parsedData);
     });
 
@@ -462,6 +465,11 @@
         } else {
             driver.finishtime = convertMilliseconds(driver.finishtime);
         }
+
+        if (driver.finishtime == 0 && driver.penalty == 0) {
+            return;
+        }
+
         kvali_entry_num += 1;
 
         document.getElementById('kvali_data_entries').innerHTML += `
@@ -480,13 +488,16 @@
                     </td>
                 </tr>
             `;
+        
         if (kvali_entry_num == kvali_crit) {
             document.getElementById('kvali_data_entries').innerHTML += `
+                    {% if display_quali %}
                     <tr>
                         <td colspan="4" class="qualify-line">
                             <span class="qualify-text">Kvalifisering til Stige</span>
                         </td>
                     </tr>
+                    {% endif %}
             `;
         }
     });

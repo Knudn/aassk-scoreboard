@@ -51,6 +51,19 @@
             </label>
         </div>
 
+        <div class="flex items-center pt-6">
+            
+            <input {{ event.display_quali }} type="checkbox" 
+                   id="displayqualiCheckbox"
+                   name="displayqualiCheckbox" 
+                   value="true"
+                   class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2">
+            <label for="displayqualiCheckbox" 
+                   class="ms-3 text-sm font-medium text-gray-900">
+                Vis kvalifisering kriterie
+            </label>
+        </div>
+
         <div class="space-y-4 pt-6">
             <label class="block text-sm font-medium text-gray-700">Arrangementinfo PDF</label>
             
@@ -208,7 +221,12 @@ dropZone.addEventListener('drop', (e) => {
 document.addEventListener('DOMContentLoaded', () => {
     const checkbox = document.getElementById('removeDataCheckbox');
     
+    const displayqualiCheckbox = document.getElementById('displayqualiCheckbox');
+
     checkbox.addEventListener('change', (e) => {
+        e.target.value = e.target.checked ? 'true' : 'false';
+    });
+    checkbox.displayqualiCheckbox('change', (e) => {
         e.target.value = e.target.checked ? 'true' : 'false';
     });
 });

@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+
+.midstring-container {
+    padding-left: 7%;
+    padding-right: 7%;
+    margin-bottom: 2rem;
+}
+
+.midstring {
+    position: relative;
+    width: 100%;
+    height: 5px;
+    background-color: #414141;
+    border-radius: 25px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.midstring-text {
+    position: absolute;
+    background-color:#f3f4f6; /* This should match your sidebar background color */
+    padding: 0 10px;
+    color: #000000e0;
+    font-size: 1.0rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+</style>
+<div class="container mx-auto px-4 py-6">
+    <!-- Title -->
+    <h1 class="text-2xl font-bold text-center mb-6">Hall of Fame</h1>
+    
+    <!-- Controls -->
+    <div class="flex justify-end mb-4">
+        <select id="driverLimit" class="bg-white border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" onchange="updateDriverLimit()">
+            <option value="3">Show Top 3</option>
+            <option value="4">Show Top 4</option>
+            <option value="5">Show Top 5</option>
+        </select>
+    </div>
+
+    <!-- Stige Section -->
+    <div class="mb-8">
+        <div class="midstring-container">
+            <div class="midstring">
+                <h2 class="midstring-text">Drag/Bakkedrag</h2>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for race_class, drivers in stige_points.items() %}
+            <div class="bg-white rounded-md shadow p-4">
+                <h3 class="text-lg font-medium mb-3">{{ race_class }}</h3>
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b">
+                            <th class="text-left py-1 w-6">#</th>
+                            <th class="text-left py-1">Fører</th>
+                            <th class="text-right py-1 w-14">Poeng</th>
+                            <th class="text-right py-1 w-24">Plassering</th>
+                        </tr>
+                    </thead>
+                    <tbody class="driver-list">
+                        {% for driver, stats in (drivers.items() | sort(reverse=True, attribute='1.total_points'))[:5] %}
+                        <tr class="border-b last:border-0 driver-row" {% if loop.index > 3 %}style="display: none;"{% endif %}>
+                            <td class="py-1.5">{{ loop.index }}</td>
+                            <td class="py-1.5">{{ driver }}</td>
+                            <td class="text-right py-1.5 text-center">{{ stats.total_points }}</td>
+                            <td class="text-right py-1.5">
+                                <div class="flex justify-end space-x-2 text-xs">
+                                    <span title="First Places" class="inline-flex items-center">
+                                        <span class="text-yellow-500 text-sm">🥇</span>{{ stats.first_places }}
+                                    </span>
+                                    <span title="Second Places" class="inline-flex items-center">
+                                        <span class="text-gray-400 text-sm">🥈</span>{{ stats.second_places }}
+                                    </span>
+                                    <span title="Third Places" class="inline-flex items-center">
+                                        <span class="text-amber-700 text-sm">🥉</span>{{ stats.third_places }}
+                                    </span>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Stige Section -->
+    <div class="mb-8">
+        <div class="midstring-container">
+            <div class="midstring">
+                <h2 class="midstring-text">Bakkeløp</h2>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for race_class, drivers in finale_points.items() %}
+            <div class="bg-white rounded-md shadow p-4">
+                <h3 class="text-lg font-medium mb-3">{{ race_class }}</h3>
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b">
+                            <th class="text-left py-1 w-6">#</th>
+                            <th class="text-left py-1">Fører</th>
+                            <th class="text-right py-1 w-14">Poeng</th>
+                            <th class="text-right py-1 w-24">Plassering</th>
+                        </tr>
+                    </thead>
+                    <tbody class="driver-list">
+                        {% for driver, stats in (drivers.items() | sort(reverse=True, attribute='1.total_points'))[:5] %}
+                        <tr class="border-b last:border-0 driver-row" {% if loop.index > 3 %}style="display: none;"{% endif %}>
+                            <td class="py-1.5">{{ loop.index }}</td>
+                            <td class="py-1.5">{{ driver }}</td>
+                            <td class="text-right py-1.5 text-center">{{ stats.total_points }}</td>
+                            <td class="text-right py-1.5">
+                                <div class="flex justify-end space-x-2 text-xs">
+                                    <span title="First Places" class="inline-flex items-center">
+                                        <span class="text-yellow-500 text-sm">🥇</span>{{ stats.first_places }}
+                                    </span>
+                                    <span title="Second Places" class="inline-flex items-center">
+                                        <span class="text-gray-400 text-sm">🥈</span>{{ stats.second_places }}
+                                    </span>
+                                    <span title="Third Places" class="inline-flex items-center">
+                                        <span class="text-amber-700 text-sm">🥉</span>{{ stats.third_places }}
+                                    </span>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+</div>
+
+<script>
+function updateDriverLimit() {
+    const limit = parseInt(document.getElementById('driverLimit').value);
+    const tables = document.querySelectorAll('.driver-list');
+    
+    tables.forEach(table => {
+        const rows = table.querySelectorAll('.driver-row');
+        rows.forEach((row, index) => {
+            if (index < limit) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+}
+</script>
+{% endblock %}

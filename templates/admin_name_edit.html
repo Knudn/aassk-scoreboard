@@ -1,0 +1,194 @@
+{% extends "admin_base.html" %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="max-w-3xl mx-auto">
+        <!-- Instructions Section -->
+        <div class="mb-8 bg-blue-50 p-6 rounded-lg border border-blue-200">
+            <h2 class="text-xl font-bold text-blue-800 mb-3">Hvordan redigere førernavn</h2>
+            <div class="space-y-3 text-blue-700">
+                <p class="font-medium mb-2">Følg disse stegene for å endre navn på førere:</p>
+                <ol class="list-decimal list-inside space-y-2 ml-2">
+                    <li>Skriv inn navnet du vil søke etter i søkefeltet (minst 2 bokstaver)</li>
+                    <li>Alle matchende navn vil vises i en liste under søkefeltet</li>
+                    <li>Rediger navnet i tekstfeltet til høyre for det opprinnelige navnet</li>
+                    <li>Du kan fjerne enkeltoppføringer ved å klikke på X-knappen</li>
+                    <li>Klikk på "Save Changes" for å lagre alle endringene</li>
+                </ol>
+                <p class="mt-4 text-sm">
+                    <span class="font-semibold">Merk:</span> Endringene vil gjelde for alle forekomster av det valgte navnet i databasen. Dobbelsjekk at navnene er riktige før du lagrer.
+                </p>
+            </div>
+        </div>
+
+        <!-- Search Section -->
+        <div class="mb-8">
+            <h1 class="text-2xl font-bold mb-4">Bulk Edit Driver Names</h1>
+            <div class="relative">
+                <input 
+                    type="text" 
+                    id="searchInput"
+                    placeholder="Start typing a driver name..."
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                <div id="searchSpinner" class="hidden absolute right-3 top-3">
+                    <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="resultsSection" class="hidden">
+            <h2 class="text-xl font-semibold mb-4">Edit Names</h2>
+            <form id="editForm" class="space-y-4">
+                <div id="resultsContainer" class="space-y-4">
+                    <!-- Results will be populated here -->
+                </div>
+                
+                <div class="flex justify-end space-x-4 mt-6">
+                    <button 
+                        type="button" 
+                        id="cancelButton"
+                        class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100"
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        type="submit"
+                        class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                    >
+                        Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- No Results Message -->
+        <div id="noResults" class="hidden">
+            <p class="text-gray-500 text-center py-4">No drivers found matching your search.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+let debounceTimeout;
+const searchInput = document.getElementById('searchInput');
+const resultsSection = document.getElementById('resultsSection');
+const resultsContainer = document.getElementById('resultsContainer');
+const noResults = document.getElementById('noResults');
+const searchSpinner = document.getElementById('searchSpinner');
+const editForm = document.getElementById('editForm');
+const cancelButton = document.getElementById('cancelButton');
+
+// Debounced search function
+searchInput.addEventListener('input', (e) => {
+    clearTimeout(debounceTimeout);
+    searchSpinner.classList.remove('hidden');
+    
+    debounceTimeout = setTimeout(() => {
+        const searchTerm = e.target.value.trim();
+        if (searchTerm.length >= 2) {
+            searchDrivers(searchTerm);
+        } else {
+            resultsSection.classList.add('hidden');
+            noResults.classList.add('hidden');
+            searchSpinner.classList.add('hidden');
+        }
+    }, 300);
+});
+
+// Search function
+async function searchDrivers(searchTerm) {
+    try {
+        const response = await fetch(`/api/search-drivers?term=${encodeURIComponent(searchTerm)}`);
+        const data = await response.json();
+        
+        if (data.length > 0) {
+            displayResults(data);
+            resultsSection.classList.remove('hidden');
+            noResults.classList.add('hidden');
+        } else {
+            resultsSection.classList.add('hidden');
+            noResults.classList.remove('hidden');
+        }
+    } catch (error) {
+        console.error('Error searching drivers:', error);
+    } finally {
+        searchSpinner.classList.add('hidden');
+    }
+}
+
+// Display results function
+function displayResults(drivers) {
+    resultsContainer.innerHTML = '';
+    
+    drivers.forEach(driver => {
+        const resultDiv = document.createElement('div');
+        resultDiv.className = 'p-4 bg-white rounded-lg shadow';
+        resultDiv.innerHTML = `
+            <div class="flex items-center space-x-4">
+                <div class="flex-grow">
+                    <input type="hidden" name="old_names[]" value="${driver}">
+                    <input 
+                        type="text" 
+                        name="new_names[]" 
+                        value="${driver}"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                </div>
+                <button 
+                    type="button"
+                    class="text-red-500 hover:text-red-700"
+                    onclick="this.closest('.p-4').remove()"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+        `;
+        resultsContainer.appendChild(resultDiv);
+    });
+}
+
+// Form submission
+editForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const oldNames = [...document.getElementsByName('old_names[]')].map(input => input.value);
+    const newNames = [...document.getElementsByName('new_names[]')].map(input => input.value);
+    
+    try {
+        const response = await fetch('/admin/edit_names', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                old_names: oldNames,
+                new_names: newNames
+            })
+        });
+        
+        if (response.ok) {
+            // Clear the form and show success message
+            searchInput.value = '';
+            resultsSection.classList.add('hidden');
+            alert('Names updated successfully!');
+        } else {
+            throw new Error('Failed to update names');
+        }
+    } catch (error) {
+        console.error('Error updating names:', error);
+        alert('Error updating names. Please try again.');
+    }
+});
+
+// Cancel button
+cancelButton.addEventListener('click', () => {
+    searchInput.value = '';
+    resultsSection.classList.add('hidden');
+    noResults.classList.add('hidden');
+});
+</script>
+{% endblock %}
