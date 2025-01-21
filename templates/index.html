@@ -1,7 +1,57 @@
 {% extends "base.html" %}
 {% block content %}
 
+<div class="min-h-screen bg-gray-50 py-8 px-4">
+    <div class="max-w-2xl mx-auto">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-900">
+                Åseral Snøscooterklubb
+            </h1>
+            <p class="text-lg text-gray-600 mt-2">
+                Resultatservice for løp
+            </p>
+        </div>
 
-<h1> TO BE DEVELOPED </h1>
+        <!-- Beta Notice -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <p class="text-gray-700">
+                Hei! Dette er en betaversjon av vår nye resultatside. Det kan hende du støter på noen feil her og der mens vi tester ting ut 🛠
+            </p>
+        </div>
+
+        <!-- Features -->
+        <div class="bg-white shadow-sm rounded-lg p-6 mb-6">
+            <h2 class="text-xl font-semibold text-gray-900 mb-3">
+                Dette kan du gjøre her:
+            </h2>
+            <ul class="space-y-2 text-gray-600">
+                <li class="flex items-center">
+                    <svg class="h-5 w-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Følge med på resultater mens løpet pågår
+                </li>
+                <li class="flex items-center">
+                    <svg class="h-5 w-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Se resultater fra tidligere løp
+                </li>
+            </ul>
+        </div>
+
+        <!-- Contact -->
+        <div class="bg-gray-100 rounded-lg p-5">
+            <p class="text-gray-700">
+                Ser du noe som ikke stemmer med resultatene? Send en mail til 
+                <a href="mailto:kor@kroland.no" class="text-blue-600 hover:text-blue-800">
+                    kor@kroland.no
+                </a>
+                så fikser vi det!
+            </p>
+        </div>
+    </div>
+</div>
 
 {% endblock %}
