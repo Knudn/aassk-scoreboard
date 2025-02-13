@@ -10,17 +10,20 @@ def get_top_drivers_finale():
     from sqlalchemy import func
     
     valid_classes = [
-        "Millenium Stock",
-        "Millennium Improved Stock",
-        "Damer",
-        "650 Stock",
-        "850 Stock",
+        "700 Stock",
+        "900 Stock",
         "Pro Stock",
-        "Trail Unlimited",
+        "Pro Stock 600",
+        "Rekrutt 11-12",
+        "Rekrutt 13-14",
+        "Ungdom 14-16",
+        "Women 900 Stock",
+        "Millennium Stock",
+        "Rookie 16-18",
+        "900 Stock",
+        "2-Takt Turbo Modified",
         "Top Fuel",
         "Millennium Improved Stock",
-        "900 Stock",
-        "2-Takt Turbo Modified"
     ]
     
     with get_db() as db:
@@ -112,18 +115,24 @@ def get_top_drivers_stige():
     from models import RaceData
     from sqlalchemy import func
 
+
+
+
     valid_classes = [
-        "Millenium Stock",
-        "Millennium Improved Stock",
-        "Damer",
-        "650 Stock",
-        "850 Stock",
+        "700 Stock",
+        "900 Stock",
         "Pro Stock",
-        "Trail Unlimited",
+        "Pro Stock 600",
+        "Rekrutt 11-12",
+        "Rekrutt 13-14",
+        "Ungdom 14-16",
+        "Women 900 Stock",
+        "Millennium Stock",
+        "Rookie 16-18",
+        "900 Stock",
+        "2-Takt Turbo Modified",
         "Top Fuel",
         "Millennium Improved Stock",
-        "900 Stock",
-        "2-Takt Turbo Modified"
     ]
     
     with get_db() as db:
@@ -152,15 +161,8 @@ def get_top_drivers_stige():
         for a in events:
             data_entry = a.to_dict()
             race_class = data_entry["race_class"]
-            
-            if race_class == "Millenium":
-                race_class = "Millenium Stock"
 
-            if "NM" in race_class:
-                race_class = race_class.split("NM")[0][:-1]
-                if race_class[-1] == " ":
-                    race_class = race_class.split("NM")[0][:-1]
-
+            print(race_class)
             driver_name = data_entry["driver_name"]
             if race_class not in valid_classes:
                 continue
@@ -251,7 +253,7 @@ def get_kvali(event=None):
     best_time_results = []
     for i in data:
         best_time_results.append(i.to_dict())
-        
+
     return best_time_results
 
 

@@ -69,6 +69,9 @@
             console.error('Error parsing data:', error);
             return;
         }
+        if (!parsedData['driver_data'][0]["race_title"].toLowerCase().includes("finale")) {
+            location.reload();
+        }
         
         console.log('Received data:', parsedData);
 

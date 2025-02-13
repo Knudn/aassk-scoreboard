@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, Response, current_app, redirect, session, url_for, flash
+from flask import Flask,send_from_directory , render_template, request, jsonify, Response, current_app, redirect, session, url_for, flash
 from sqlalchemy import create_engine, and_, text, func
 from sqlalchemy.orm import sessionmaker, Session
 from queries import *
@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from collections import defaultdict
 from typing import Any, Dict, List, Union
 from flask_socketio import SocketIO, emit, join_room
+import os
 
 
 DATABASE_URL = "sqlite:///./site.db"
@@ -34,11 +35,13 @@ socketio = SocketIO(app)
 use_auth = True
 
 ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "admin"
+ADMIN_PASSWORD = "RatSalad1337"
 
 
 Base.metadata.create_all(bind=engine)
 
+
+    
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -528,11 +531,7 @@ def live_startlist():
                 grouped_data[category][race_title][entry.heat] = []
             
             grouped_data[category][race_title][entry.heat].append(entry)
-        for a in grouped_data:
-            for b in grouped_data[a]:
-                for t in grouped_data[a][b]:
-                    for g in grouped_data[a][b][t]:
-                        print(g.penalty)
+
         return render_template('live_startlist.html', grouped_data=grouped_data, events=events,live_event_state=live_event_state)
 
 
@@ -854,8 +853,6 @@ def realtime_data_update():
 
     data = request.json
 
-    
-
     with get_db() as db:
         token = data["token"]
 
@@ -871,14 +868,7 @@ def realtime_data_update():
             race_title = race_config["TITLE_2"]
             mode = race_config["MODE"]
             heat = race_config["HEAT"]
-            if "kvalifisering" in race_title.lower():
-                kvali_data = get_kvali(race_title)
-                mode = "kvali"
-            elif "finale" in race_title.lower():
-                finale_data = get_finale_live(race_title)
-                mode = "finale"
-            else:
-                kvali_data = None
+
             
             db.query(RealTimeData).filter(RealTimeData.race_title == race_title, RealTimeData.heat == heat).delete()
             
@@ -959,11 +949,17 @@ def realtime_data_update():
 
             real_time_data_objects = db.query(RealTimeData).filter(RealTimeData.race_title==realtime_state_dict["active_race"], RealTimeData.heat==realtime_state_dict["active_heat"]).all()
             race_data = [rdata.to_dict() for rdata in real_time_data_objects]
-            kvali__crit_data = db.query(RealTimeKvaliData.kvali_num).filter(race_title==race_title).first()
-            
-            print(kvali__crit_data)
+            kvali__crit_data = db.query(RealTimeKvaliData.kvali_num).filter(RealTimeKvaliData.race_title==race_title).first()
 
-
+            if "kvalifisering" in race_title.lower():
+                kvali_data = get_kvali(race_title)
+                mode = "kvali"
+            elif "finale" in race_title.lower():
+                finale_data = get_finale_live(race_title)
+                mode = "finale"
+                
+            else:
+                kvali_data = None
             json_data["state"] = realtime_state_dict
 
             json_data["driver_data"] = race_data
@@ -1199,9 +1195,12 @@ def admin_live_config():
         realtime_state = db.query(RealTimeState).first()
         existing_pdfs = db.query(PDFS).all()
         
-        if realtime_state.display_quali == False:
-            quli_state = ""
-        else:
+        try:
+            if realtime_state.display_quali == False:
+                quli_state = ""
+            else:
+                quli_state = "checked"
+        except:
             quli_state = "checked"
 
         event = {
@@ -1367,6 +1366,25 @@ def upload_data():
     from models import RaceClasses
     data = request.json
     class_types = []
+    class_list = {
+            "700 Stock":["700 Stock","600","600 Stock","650 Stock","650 Stock (NM)","650 Stock-","700 Stock"],
+            "900 Stock":["900 Stock","800","850 Stock","900 Stock","900 Stock (NM)","900 Stock NM"],
+            "2-Takt Turbo Modified":[],
+            "Bakkecross Pro Stock 600":[],
+            "Bakkecross Semi Pro Stock":[],
+            "Women 900 Stock":["Women 900 Stock","Dame (Max 850cc)","Damer","Damer (850 Stock)","Damer (Maks 850cc)","Damer 2-Takt Turbo Modified","Women 900 Stock"],
+            "Women Pro Stock (NM)":[],
+            "Millennium Stock":["Millennium Stock","Millenium","Millenium Stock","Millennium (Sittescooter pre 2003)","Millennium Stock"],
+            "Millennium Improved Stock":["Millennium Improved Stock"],
+            "Pro Stock":["Pro Stock","Pro Stock","Pro Stock NM"],
+            "Pro Stock 600":["Pro Stock 600","Pro Stock 600","Pro Stock 600 (NM)"],
+            "Rekrutt 11-12":["Rekrutt 11-12","Rekrutt 11-12år"],
+            "Rekrutt 13-14":["Rekrutt 13-14","Rekrutt 13-14","Rekrutt 13-14år","Ungdom 12-14 (maks 600cc luft)"],
+            "Ungdom 14-16":["Ungdom 14-16år","Rekrutt 13-15","Rekrutt 13-16","Ungdom 13-16","Ungdom 13-16år","Ungdom 14-16","Ungdom 14-16år","Ungdom 14-16år (NM)","Rekrutt 11-16"],
+            "Rookie 16-18":["Rookie 16-18 (maks 850cc)","Rookie 16-18år","Rookie","Rookie (Max 850cc)","Rookie 0-850cc (16-20)","Rookie 16-18 (850cc)","Rookie 16-18år","Ungdom (Max 850cc)","Ungdom 16-20 (Max 850cc)","Ungdom 16-20 (max 850cc)"],
+            "Top Fuel":["Top Fuel","Top Fuel (NM)","Top Fuel NM"],
+            "Trail Unlimited":["Trail Unlimited","Trail Unlimited (NM)"]
+        }
 
     class_strings = ["kval", "finale", "stige", "kvalifisering"]
 
@@ -1392,13 +1410,16 @@ def upload_data():
                     if race_title_lst_string[len(race_title_lst_string) - 2] == "-":
                         class_string = race_title.rsplit(' ', 2)[0]
 
-                        new_race_class_entry = RaceClasses(name=class_string)
+                        #new_race_class_entry = RaceClasses(name=class_string)
                     else:
                         class_string = race_title.rsplit(' ', 1)[0]
+                    for t in class_list:
+                        if class_string in class_list[t]:
+                            class_string = t
+                            f = True
+                    if f == False:
+                        print(class_string)
 
-
-
-                    
                     new_race_class_entry = RaceClasses(name=class_string)
 
                     if class_string not in class_types:
@@ -1475,4 +1496,8 @@ if __name__ == '__main__':
 
 
     app.config['race_active'] = False
-    socketio.run(app, debug=True, host="192.168.20.218")
+    socketio.run(app, 
+                 debug=True, 
+                 host="192.168.20.218",
+                 port=5000,
+                )

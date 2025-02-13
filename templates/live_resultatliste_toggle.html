@@ -12,6 +12,7 @@
     </style>
 </head>
 <body>
+    {% if categories | length > 0 %}
     <div class="max-w-xs mx-auto mb-4" id="live_table_sub">
         <div class="bg-white p-0.5 rounded-lg shadow-sm flex">
             {% for cat in categories %}
@@ -21,6 +22,7 @@
             {% endfor %}
         </div>
     </div>
+    {% endif %}
     <div id="content-container">
     </div>
 

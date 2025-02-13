@@ -157,6 +157,19 @@
    
    
   <script>
+
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
     function toggleAccordion(index) {
       const content = document.getElementById(`content-${index}`);
       const icon = document.getElementById(`icon-${index}`);
@@ -184,22 +197,83 @@
         icon.innerHTML = downSVG;
       }
     }
+
+    const update_kvali_table = debounce((kvali_data, kvali_crit) => {
+        kvali_entry_num = 0;
+        console.log("asd", kvali_data)
+        document.getElementById('kvali_data_entries').innerHTML = ``;
+
+        console.log("---------------")
+
+        kvali_data.kvali_data.forEach(function (driver) {
+            console.log(driver.driver_name, driver.finishtime)
+
+            if (driver.penalty == 1) {
+                driver.finishtime = 'DNS';
+            } else if (driver.penalty == 2) {
+                driver.finishtime = 'DNF';
+            } else if (driver.penalty == 3) {
+                driver.finishtime = 'DSQ';
+            } else {
+                driver.finishtime = convertMilliseconds(driver.finishtime);
+            }
+
+            if (driver.finishtime == 0 && driver.penalty == 0) {
+                return;
+            }
+
+            kvali_entry_num += 1;
+
+            document.getElementById('kvali_data_entries').innerHTML += `
+                    <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                        <td class="py-2 px-3 text-center">
+                            ${kvali_entry_num}
+                        </td>
+                        <td class="py-2 px-3">
+                            ${driver.driver_name}
+                        </td>
+                        <td class="py-2 px-3 mobile_hide">
+                            ${driver.vehicle}
+                        </td>
+                        <td class="py-2 px-3">
+                            ${driver.finishtime}
+                        </td>
+                    </tr>
+                `;
+            if (kvali_entry_num == kvali_crit) {
+                document.getElementById('kvali_data_entries').innerHTML += `
+                        {% if display_quali %}
+                        <tr>
+                            <td colspan="4" class="qualify-line">
+                                <span class="qualify-text">Kvalifisering til Stige</span>
+                            </td>
+                        </tr>
+                        {% endif %}
+                `;
+            }
+        });
+    }, 100);
   </script>
 
 </div>
 
-
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 <script>
-    const socket = io('/live_data');
-
-    socket.on('connect', () => {
-        console.log('Connected to server');
+    let socket;
+    if (!window.mySocketConnection) {
+        socket = io('/live_data');
+        window.mySocketConnection = socket;
         
-        const deviceId = 'device_' + Math.random().toString(36).substr(2, 9);
-        socket.emit('device_connected', { deviceId: deviceId });
-    });
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            
+            const deviceId = 'device_' + Math.random().toString(36).substr(2, 9);
+            socket.emit('device_connected', { deviceId: deviceId });
+        });
+        
+    } else {
+        socket = window.mySocketConnection;
+    }
 
     socket.on('server_response', (data) => {
         let parsedData;
@@ -212,8 +286,7 @@
             console.error('Error parsing data:', error);
             return;
         }
-        console.log(parsedData)
-        if (!parsedData['driver_data'][0]["mode"].toLowerCase().includes("kvali")) {
+        if (!parsedData['driver_data'][0]["race_title"].toLowerCase().includes("kvali")) {
             location.reload();
         }
         updateRaceData(parsedData);
@@ -227,9 +300,13 @@
             if (parsedData.data && typeof parsedData.data === 'string') {
                 parsedData = JSON.parse(parsedData.data);
             }
+
         } catch (error) {
             console.error('Error parsing data:', error);
             return;
+        }
+        if (!parsedData['driver_data'][0]["race_title"].toLowerCase().includes("kvali")) {
+            location.reload();
         }
         updateRaceData(parsedData);
     });
@@ -253,12 +330,17 @@
         }
 
         const { driver_data, state, kvali_data, kvali_crit} = raceData;
+
+        console.log(driver_data)
+
         drivers_num = driver_data.length;
         activeDriver1 = driver_data.find(driver => driver.cid === state.active_driver_1);
         activeDriver2 = driver_data.find(driver => driver.cid === state.active_driver_2);
 
-        const pairNumber = Math.floor(driver_data.indexOf(activeDriver1) / 2) + 1;
+        
 
+
+        const pairNumber = Math.floor(driver_data.indexOf(activeDriver1) / 2) + 1;
         // Update active race information
         document.getElementById('activeRaceInfo').innerHTML = `
             <h2 class="text-2xl font-bold mb-2">${state.active_race}</h2>
@@ -427,7 +509,7 @@
             } else {
                 color_active_session = 'none';
             }
-            
+
             document.getElementById('startlist_entries').innerHTML += `
                 <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
                     <td class="py-2 px-3 text-right" style="width: 47%; border-right: 4px solid ${color1};">
@@ -446,61 +528,16 @@
                     </td>
                 </tr>
             `;
+        
+        
+
         } else {
             driver_1 = driver;
         }
-    
+        update_kvali_table(raceData, kvali_crit);
         
     });
-    kvali_entry_num = 0;
-    document.getElementById('kvali_data_entries').innerHTML = ``;
-    raceData.kvali_data.forEach(function (driver) { 
 
-        if (driver.penalty == 1) {
-            driver.finishtime = 'DNS';
-        } else if (driver.penalty == 2) {
-            driver.finishtime = 'DNF';
-        } else if (driver.penalty == 3) {
-            driver.finishtime = 'DSQ';
-        } else {
-            driver.finishtime = convertMilliseconds(driver.finishtime);
-        }
-
-        if (driver.finishtime == 0 && driver.penalty == 0) {
-            return;
-        }
-
-        kvali_entry_num += 1;
-
-        document.getElementById('kvali_data_entries').innerHTML += `
-                <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                    <td class="py-2 px-3 text-center">
-                        ${kvali_entry_num}
-                    </td>
-                    <td class="py-2 px-3">
-                        ${driver.driver_name}
-                    </td>
-                    <td class="py-2 px-3 mobile_hide">
-                        ${driver.vehicle}
-                    </td>
-                    <td class="py-2 px-3">
-                        ${driver.finishtime}
-                    </td>
-                </tr>
-            `;
-        
-        if (kvali_entry_num == kvali_crit) {
-            document.getElementById('kvali_data_entries').innerHTML += `
-                    {% if display_quali %}
-                    <tr>
-                        <td colspan="4" class="qualify-line">
-                            <span class="qualify-text">Kvalifisering til Stige</span>
-                        </td>
-                    </tr>
-                    {% endif %}
-            `;
-        }
-    });
     
     }
     function oddOrEven(x) {

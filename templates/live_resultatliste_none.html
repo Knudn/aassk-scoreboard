@@ -4,7 +4,7 @@
     {% include 'toggle_live_switch.html' %}
 {% endwith %}
 
-{% with live_page='stige' %}
+{% with live_page='Kvalifisering' %}
     {% include 'live_resultatliste_toggle.html' %}
 {% endwith %}
 <style>
@@ -14,9 +14,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/1.6.2/jquery.min.js"></script>
 <script src="{{ url_for('static', filename='js/ladder/vendor.js') }}"></script>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/ladder/app.css') }}">
-<script>
-    
-</script>
+
 
 <style>
   .center {
@@ -30,12 +28,24 @@
   }
 </style>
 
-<div style="margin-top: 150px;" >
+<div style="margin-top: 150px;" id="msg_state" >
   <div class="container mx-auto px-4 py-8 txt_center">
     <h2>INGEN RESULTAT Å VISE</h2>
     <h3>Refresh siden når løpet har startet</h3>
   </div>
 </div>
+
+<script>
+  const exists = document.getElementById('live_table_sub') !== null;
+
+  if (exists) {
+
+    document.getElementById('msg_state').style.display = 'none';
+    window.location.href = "/live/resultatliste?type=Kvalifisering";
+
+  }
+  
+</script>
 
 
 {% endblock %}
