@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, Float, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Date, Float, Boolean, DateTime, ForeignKey, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.orm import relationship
@@ -129,3 +129,24 @@ class User(Base):
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+class ManualEntries(Base):
+    __tablename__ = 'manual_entries'
+    
+    id = Column(Integer, primary_key=True)
+    event_title = Column(String, unique=True)
+    races = Column(JSON)
+    event_date = Column(Date)
+
+    def to_dict(self):
+        races = self.races if self.races else []
+        return {
+            'id': self.id,
+            'event_title': self.event_title,
+            'races': races,
+            'event_date': self.event_date.isoformat(),
+            'race_title': races[0]['race_title'] if races else '',
+            'mode': races[0]['mode'] if races else 1,
+            'driver_places': races[0]['driver_places'] if races else [],
+            'pdf_filename': races[0].get('pdf_filename') if races else None
+        }

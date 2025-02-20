@@ -1,5 +1,5 @@
 from flask import Flask,send_from_directory , render_template, request, jsonify, Response, current_app, redirect, session, url_for, flash
-from sqlalchemy import create_engine, and_, text, func
+from sqlalchemy import create_engine, and_, text, func, Date, extract
 from sqlalchemy.orm import sessionmaker, Session
 from queries import *
 from models import Base, RaceData
@@ -13,6 +13,8 @@ from collections import defaultdict
 from typing import Any, Dict, List, Union
 from flask_socketio import SocketIO, emit, join_room
 import os
+from datetime import date
+
 
 
 DATABASE_URL = "sqlite:///./site.db"
@@ -200,14 +202,19 @@ def get_ladder_data_live():
                 t.finishtime, t.penalty, t.inter_1
             ])
 
+
         # Append the last event data if it exists
         if data["event_data"]:
             event_lst.append(data)
+        
 
         return event_lst, table_data, event_date
 
 def get_finale(year, event_name, event_type):
+    from models import ManualEntries
+
     entry_data = None
+
     with get_db() as db:
         event_data = (
             db.query(RaceData)
@@ -223,7 +230,39 @@ def get_finale(year, event_name, event_type):
             )
             .all()
         )
+
+        manual = False
+
+        if len(event_data) == 0:
+            manual_entries = db.query(ManualEntries).filter(
+                ManualEntries.event_title == event_name,
+                ManualEntries.event_date.isnot(None) & (extract('year', ManualEntries.event_date) == year)
+            ).all()
+
+            keep_strings = ["Finale"]
+            mid_lst = []
+            
+            for entry in manual_entries:
+                for race in entry.to_dict()["races"]:
+                    entry_date = entry.to_dict()["event_date"]
+                    event_title = entry.to_dict()["event_title"]
+
+                    if "finale" in race["race_title"].lower():
+                        mid_lst.append(race)
+
+                        race_title = race["race_title"]
+
+            table_data = [{
+                "date":entry_date,
+                "event_title": event_title,
+                "race_title": race_title,
+                "drivers": mid_lst
+            }]
+
+            return table_data, entry_date, True
+
         table_data = {}
+        
         for table_nr, entry in enumerate(event_data):
             table_nr += 1
             if entry.race_title not in table_data.keys():
@@ -244,8 +283,9 @@ def get_finale(year, event_name, event_type):
                 "finishtime": entry.finishtime,
                 "heat": entry.heat,
             }
-        
-        return table_data, entry_date
+
+
+        return table_data, entry_date, False
     
 
 def get_ladder_data(year, event_name, event_type):
@@ -314,11 +354,38 @@ def get_ladder_data(year, event_name, event_type):
         # Add the last group of data after the loop ends
         if data["event_data"] != []:
             event_lst.append(data)
+        else:
+            from models import ManualEntries
+            manual_entries = db.query(ManualEntries).filter(
+                ManualEntries.event_title == event_name,
+                ManualEntries.event_date.isnot(None) & (extract('year', ManualEntries.event_date) == year)
+            ).all()
 
-        return event_lst, reordered_table_data, event_date
+            keep_strings = ["Stige"]
+            mid_lst = []
+            
+            for entry in manual_entries:
+                for race in entry.to_dict()["races"]:
+                    entry_date = entry.to_dict()["event_date"]
+                    event_title = entry.to_dict()["event_title"]
+
+                    if "stige" in race["race_title"].lower():
+                        mid_lst.append(race)
+
+                        race_title = race["race_title"]
+
+            table_data = [{
+                "date":entry_date,
+                "event_title": event_title,
+                "race_title": race_title,
+                "drivers": mid_lst
+            }]
+            return event_lst, table_data, event_date, True
+
+        return event_lst, reordered_table_data, event_date, False
     
 def get_event_race_data():
-    from models import RealTimeState
+    from models import RealTimeState, ManualEntries
 
     with get_db() as db:
         event_data = db.query(
@@ -326,6 +393,24 @@ def get_event_race_data():
             RaceData.event_title,
             RaceData.race_title
         ).filter(RaceData.enabled==True).order_by(RaceData.date).all()
+        manual_entries = db.query(ManualEntries).all()
+
+        manual_entries_dict = {}
+
+        for a in manual_entries:
+            
+            event_date = a.event_date.isoformat()
+            event_title = a.event_title
+
+            for b in a.races:
+
+                race_title = b["race_title"]
+                if event_date not in manual_entries_dict:
+                    manual_entries_dict[event_date] = {}
+                if event_title not in manual_entries_dict[event_date]:
+                    manual_entries_dict[event_date][event_title] = []
+                
+                manual_entries_dict[event_date][event_title].append(race_title)
         
         live_state = db.query(RealTimeState).first()
 
@@ -341,12 +426,36 @@ def get_event_race_data():
                 live_state_name = "NONE"
         else:
             live_state_name = "NONE"
+
         result = defaultdict(lambda: defaultdict(list))
+
+        manual_entries_dict = {}
+
+        for a in manual_entries:
+            event_date = a.event_date.isoformat()
+            event_title = a.event_title
+
+            for b in a.races:
+                race_title = b["race_title"]
+                if event_date not in manual_entries_dict:
+                    manual_entries_dict[event_date] = {}
+                if event_title not in manual_entries_dict[event_date]:
+                    manual_entries_dict[event_date][event_title] = []
+
+                manual_entries_dict[event_date][event_title].append(race_title)
 
         for date, event_title, race_title in event_data:
             result[date.isoformat()][event_title].append(race_title)
 
+        for date, events in manual_entries_dict.items():
+            for event_title, race_titles in events.items():
+                
+                result[date][event_title].extend(race_titles)
+
         formatted_result = {}
+
+        result = dict(sorted(result.items()))
+
         for date, events in result.items():
             formatted_result[date] = {
                 event_title: list(set(race_titles))
@@ -365,6 +474,7 @@ def check_creds(token):
 def home():
     from models import RaceData, RealTimeData, RealTimeState
     from sqlalchemy import distinct
+
 
     events, live_event_state = get_event_race_data()
 
@@ -640,6 +750,176 @@ def edit_names():
 
     return render_template('admin_name_edit.html')
 
+import base64
+from pathlib import Path
+from flask import jsonify, request, render_template
+from sqlalchemy.exc import SQLAlchemyError
+
+@app.route("/admin/add_manually", methods=['POST', 'GET'])
+def add_manually():
+    from models import ManualEntries
+    import subprocess
+    import hashlib
+
+    if request.method == 'POST':
+        try:
+            data = request.get_json()
+            if not data:
+                return jsonify({'success': False, 'message': 'No data received'}), 400
+
+            action = data.get('action')
+            if not action:
+                return jsonify({'success': False, 'message': 'No action specified'}), 400
+
+            with get_db() as db:
+                # Handle deletion
+                if action == 'delete':
+                    if not data.get('id'):
+                        return jsonify({'success': False, 'message': 'No ID provided for deletion'}), 400
+
+                    db.query(ManualEntries).filter(
+                        ManualEntries.id == data['id']
+                    ).delete()
+                    db.commit()
+                    return jsonify({'success': True, 'message': 'Event deleted successfully'})
+
+                # For creation, check for event title uniqueness
+                elif action == 'create':
+                    existing_event = db.query(ManualEntries).filter(
+                        ManualEntries.event_title == data['event_title']
+                    ).first()
+                    if existing_event:
+                        return jsonify({'success': False, 'message': 'An event with this title already exists'}), 400
+
+                # Process PDF uploads for both creation and editing
+                if action in ['create', 'edit']:
+                    for race in data.get("races", []):
+                        if race.get('pdf'):
+                            try:
+                                pdf_data = race['pdf']
+                                filename = pdf_data['filename']
+                                content = pdf_data['content']
+                                frontend_hash = pdf_data.get('hash', 'No hash provided')
+
+                                # Create sanitized filenames using event and race titles
+                                event_title = data['event_title'].replace(" ", "_")
+                                race_title = race['race_title'].replace(" ", "_")
+                                eventdate = data['event_date'].replace(" ", "_")
+                                unique_filename = f"{eventdate}_{event_title}_{race_title}.pdf"
+
+                                # Ensure the target directory exists
+                                pdf_dir = Path('static/pdfs/manual_entries')
+                                pdf_dir.mkdir(exist_ok=True)
+
+                                # Save the PDF file
+                                pdf_path = pdf_dir / unique_filename
+                                pdf_content = base64.b64decode(content)
+                                backend_hash = hashlib.sha256(pdf_content).hexdigest()
+                                
+                                print(f"PDF Upload for {race_title}:")
+                                print(f"Frontend Hash: {frontend_hash}")
+                                print(f"Backend Hash:  {backend_hash}")
+                                print(f"Hashes match: {frontend_hash == backend_hash}")
+                                
+                                pdf_path.write_bytes(pdf_content)
+
+                                # Record the PDF filename.
+                                race['pdf_filename'] = unique_filename
+
+                                # Prepare output image path.
+                                output_image_filename = f"{eventdate}_{event_title}_{race_title}.jpg"
+                                output_image_path = pdf_dir / output_image_filename
+
+                                output_basename = str(output_image_path.with_suffix(''))
+                                cmd = [
+                                    'pdftoppm',
+                                    '-jpeg',
+                                    '-singlefile',
+                                    str(pdf_path),
+                                    output_basename
+                                ]
+                                # Run the command. If it fails, subprocess.CalledProcessError is raised.
+                                subprocess.run(cmd, check=True)
+
+                                # Optionally store the thumbnail filename for later use.
+                                race['thumbnail_filename'] = output_image_filename
+
+                                # Remove the raw PDF data from the race dictionary.
+                                del race['pdf']
+
+                            except Exception as e:
+                                return jsonify({
+                                    'success': False,
+                                    'message': f'Error processing PDF: {str(e)}'
+                                }), 400
+
+                if action == 'edit':
+                    db.query(ManualEntries).filter(
+                        ManualEntries.event_title == data['event_title']
+                    ).delete()
+
+                event_date_new = date.fromisoformat(data["event_date"])
+
+                new_entry = ManualEntries(
+                    event_title=data['event_title'],
+                    event_date=event_date_new,
+                    races=data['races']
+                )
+                db.add(new_entry)
+
+                try:
+                    db.commit()
+                except SQLAlchemyError as e:
+                    db.rollback()
+                    return jsonify({
+                        'success': False,
+                        'message': f'Database error: {str(e)}'
+                    }), 500
+
+                return jsonify({
+                    'success': True,
+                    'message': f'Event {action}d successfully'
+                })
+
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'message': f'Server error: {str(e)}'
+            }), 500
+
+    else:  # GET request
+        try:
+            with get_db() as db:
+                events = db.query(ManualEntries).all()
+                events_lst = []
+                for event in events:
+                    try:
+                        races = event.races if event.races else []
+                        event_dict = {
+                            'id': event.id,
+                            'event_title': event.event_title,
+                            'races': races,
+                            'event_date': event.event_date.isoformat() if event.event_date else None,
+                            'race_title': races[0]['race_title'] if races else '',
+                            'mode': races[0]['mode'] if races else 1,
+                            'driver_places': races[0]['driver_places'] if races else [],
+                            'pdf_filename': races[0].get('pdf_filename') if races else "None"
+                        }
+
+                        events_lst.append(event_dict)
+                    except Exception as e:
+                        print(f"Error processing event {event.id}: {str(e)}")
+                        continue
+
+            return render_template('admin_add_manual.html', manual_entries=events_lst)
+
+        except Exception as e:
+            print(f"Database error: {str(e)}")
+            return jsonify({
+                'success': False,
+                'message': f'Error loading entries: {str(e)}'
+            }), 500
+
 @app.route('/api/search-drivers')
 def search_drivers():
     from models import RaceData
@@ -723,15 +1003,14 @@ def event():
     if request.method == 'GET':
         year = request.args.get('year')
         event = request.args.get('event_name')
-        
         with get_db() as db:
             entry = db.query(RaceData).filter(
-            RaceData.event_title == event,
-            func.strftime('%Y', RaceData.date) == str(year)
+                RaceData.event_title == event,
+                func.strftime('%Y', RaceData.date) == str(year)
             ).first().to_dict()
             entry["date"] = entry["date"].isoformat()
             return entry
-            
+
     elif request.method == 'POST':
         data = request.json
 
@@ -808,8 +1087,6 @@ def edit_archive_race_title():
                 record.mode = new_config['mode']
 
             db.commit()
-
-        print(new_config)
 
 
     return jsonify({"success": True})
@@ -1036,20 +1313,37 @@ def event_overview(year, event_name, race_type):
         event_data, table_data, event_date = get_kvali_data(year, event_name, race_type)
         return render_template('event_overview_kval.html', events=events, event_name=event_name, table_data=table_data, event_date=event_date, live_event_state=live_event_state)
     elif str(race_type).lower() == "stige":
-        event_data, table_data, event_date = get_ladder_data(year, event_name, race_type)
-        return render_template('event_overview_stige.html', events=events, event_name=event_name, event_data=event_data, table_data=table_data, event_date=event_date, live_event_state=live_event_state)
+        
+
+
+        event_data, table_data, event_date, manual_entry = get_ladder_data(year, event_name, race_type)
+        if manual_entry:
+            return render_template('event_overview_finale_manual.html', events=events, event_name=event_name, table_data=table_data, event_date=event_date, live_event_state=live_event_state)
+        else:
+            return render_template('event_overview_stige.html', events=events, event_name=event_name, event_data=event_data, table_data=table_data, event_date=event_date, live_event_state=live_event_state)
+    
     elif str(race_type).lower() == "finale":
-        table_data, event_date = get_finale(year, event_name, race_type)
-        return render_template('event_overview_finale.html', events=events, event_name=event_name, table_data=table_data, event_date=event_date, live_event_state=live_event_state)
+        table_data, event_date, manual_entry = get_finale(year, event_name, race_type)
+        if manual_entry:
+            return render_template('event_overview_finale_manual.html', events=events, event_name=event_name, table_data=table_data, event_date=event_date, live_event_state=live_event_state)
+        else:
+            return render_template('event_overview_finale.html', events=events, event_name=event_name, table_data=table_data, event_date=event_date, live_event_state=live_event_state)
 
 @app.route('/hall-of-fame')
 def hall_of_fame():
     from utils.utils import get_top_drivers_stige, get_top_drivers_finale
+    name = request.args.get('name')
+
 
     events, live_event_state = get_event_race_data()
 
-    stige_points=get_top_drivers_stige()
-    finale_points=get_top_drivers_finale()
+    stige_points=get_top_drivers_stige(name)
+    finale_points=get_top_drivers_finale(name)
+
+    if name != None:
+        return render_template('driver_scores.html', events=events, live_event_state=live_event_state,
+                                                    stige_points=stige_points, finale_points=finale_points)
+
 
     return render_template('hall_of_fame.html', events=events, live_event_state=live_event_state,
                                                 stige_points=stige_points, finale_points=finale_points)
@@ -1353,8 +1647,6 @@ def get_drivers():
         response = jsonify(results_list)
         
         print("Response Headers:")
-        for header, value in response.headers.items():
-            print(f"{header}: {value}")
         
         return response
     except Exception as e:

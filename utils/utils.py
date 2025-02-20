@@ -4,119 +4,166 @@ import geoip2.database
 from flask import request, session
 import time
 
-def get_top_drivers_finale():
-    from app import get_db
-    from models import RaceData
-    from sqlalchemy import func
-    
-    valid_classes = [
-        "700 Stock",
-        "900 Stock",
-        "Pro Stock",
-        "Pro Stock 600",
-        "Rekrutt 11-12",
-        "Rekrutt 13-14",
-        "Ungdom 14-16",
-        "Women 900 Stock",
-        "Millennium Stock",
-        "Rookie 16-18",
-        "900 Stock",
-        "2-Takt Turbo Modified",
-        "Top Fuel",
-        "Millennium Improved Stock",
-    ]
-    
-    with get_db() as db:
-        # Get all unique combinations of date, event_title, and race_title
-        unique_races = db.query(
-            RaceData.date,
-            RaceData.event_title,
-            RaceData.race_title
-        ).filter(
-            RaceData.race_title.ilike('%Finale%')
-        ).distinct().all()
-        
-        points = {}
-        
-        # Process each unique race
-        for race_date, event_title, race_title in unique_races:
-            # Get all valid runs for this specific race, ordered by finish time
-            race_results = db.query(RaceData).filter(
-                RaceData.date == race_date,
-                RaceData.event_title == event_title,
-                RaceData.race_title == race_title,
-                RaceData.penalty == 0,  # Only runs without penalties
-                RaceData.finishtime > 0  # Ensure valid finish times
-            ).order_by(
-                RaceData.finishtime
-            ).all()
-            
-            # Group results by race class
-            class_results = {}
-            for entry in race_results:
-                data_entry = entry.to_dict()
-                race_class = data_entry["race_class"]
+def get_top_drivers_finale(driver_name=None):
+   from app import get_db
+   from models import RaceData, ManualEntries
+   from sqlalchemy import func
+
+
+   valid_classes = [
+       "700 Stock",
+       "900 Stock",
+       "Pro Stock",
+       "Pro Stock 600",
+       "Rekrutt 11-12",
+       "Rekrutt 13-14",
+       "Ungdom 14-16",
+       "Women 900 Stock",
+       "Millennium Stock",
+       "Rookie 16-18",
+       "900 Stock",
+       "2-Takt Turbo Modified",
+       "Top Fuel",
+       "Millennium Improved Stock",
+       "Trail Unlimited"
+   ]
+   
+   filter_conditions = [RaceData.race_title.ilike('%Finale%'), RaceData.enabled == True]
+
+   if driver_name is not None:
+       filter_conditions.append(RaceData.driver_name == driver_name)
+
+   with get_db() as db:
+       manual_entrues = db.query(ManualEntries).filter().all()
+
+       if driver_name is not None:
+           # For specific driver, get their race results
+            result = {}
+
+            for a in manual_entrues:
+                man_data = a.to_dict()
+                man_event_title = man_data["event_title"]
+                man_date = man_data["event_date"]
+
+                for b in man_data["races"]:
+                    driver_pos = b["driver_places"]
+                    race_title = b["race_title"]
+                    if "finale" in race_title.lower():
+                        mode = b["mode"]
+                        for c in driver_pos:
+                            if driver_name in c["driver"] and int(mode) == 3:
+                                key = f"{man_date} - {man_event_title} - {race_title}"
+                                pos = c["position"]
+                                if pos < 4 and pos != 0:
+                                    result[key] = {key: 4 - pos}
+
+            unique_races = db.query(
+                RaceData.date,
+                RaceData.event_title,
+                RaceData.race_title
+            ).filter(
+                *filter_conditions
+            ).distinct().all()
+           
+            for race_date, event_title, race_title in unique_races:
+                race_results = db.query(RaceData).filter(
+                    RaceData.date == race_date,
+                    RaceData.event_title == event_title,
+                    RaceData.race_title == race_title,
+                    RaceData.penalty == 0,
+                    RaceData.finishtime > 0
+                ).order_by(
+                    RaceData.finishtime
+                ).all()
                 
-                # Handle special case for Millenium
-                if race_class == "Millenium":
-                    race_class = "Millenium Stock"
-                
-                # Handle NM cases
-                if "NM" in race_class:
-                    race_class = race_class.split("NM")[0][:-1]
-                    if race_class[-1] == " ":
-                        race_class = race_class[:-1]
-                
-                if race_class not in valid_classes:
-                    continue
-                
-                if race_class not in class_results:
-                    class_results[race_class] = []
-                
-                class_results[race_class].append(data_entry)
-            
-            # Process each race class
-            for race_class, entries in class_results.items():
-                # Sort entries by finish time
+                # Convert to dict and sort by finish time
+                entries = [entry.to_dict() for entry in race_results]
                 sorted_entries = sorted(entries, key=lambda x: x['finishtime'])
                 
-                # Initialize race class in points dict if needed
-                if race_class not in points:
-                    points[race_class] = {}
-                
-                # Award points to top 3 finishers
-                for position, entry in enumerate(sorted_entries[:3]):
-                    driver_name = entry['driver_name']
+                # Find position of our driver if they participated
+                try:
+                    position = next(i for i, entry in enumerate(sorted_entries) if entry['driver_name'] == driver_name)
+                    points = 3 if position == 0 else (2 if position == 1 else (1 if position == 2 else 0))
                     
-                    # Initialize driver if not exists
-                    if driver_name not in points[race_class]:
-                        points[race_class][driver_name] = {
-                            'total_points': 0,
-                            'first_places': 0,
-                            'second_places': 0,
-                            'third_places': 0
-                        }
-                    
-                    # Award points based on position
-                    if position == 0:  # First place
-                        points[race_class][driver_name]['total_points'] += 3
-                        points[race_class][driver_name]['first_places'] += 1
-                    elif position == 1:  # Second place
-                        points[race_class][driver_name]['total_points'] += 2
-                        points[race_class][driver_name]['second_places'] += 1
-                    elif position == 2:  # Third place
-                        points[race_class][driver_name]['total_points'] += 1
-                        points[race_class][driver_name]['third_places'] += 1
-        
-        return points
+                    key = f"{race_date} - {event_title} - {race_title}"
+                    result[key] = {key: points}
+                except StopIteration:
+                    # Driver didn't participate in this race
+                    continue
 
-def get_top_drivers_stige():
+            # Convert to list and sort by date
+            return sorted(result.values(), key=lambda x: list(x.keys())[0])
+           
+       else:
+           # Original logic for all drivers
+           unique_races = db.query(
+               RaceData.date,
+               RaceData.event_title,
+               RaceData.race_title
+           ).filter(
+               *filter_conditions
+           ).distinct().all()
+           
+           points = {}
+           
+           for race_date, event_title, race_title in unique_races:
+               race_results = db.query(RaceData).filter(
+                   RaceData.date == race_date,
+                   RaceData.event_title == event_title,
+                   RaceData.race_title == race_title,
+                   RaceData.penalty == 0, 
+                   RaceData.finishtime > 0
+               ).order_by(
+                   RaceData.finishtime
+               ).all()
+               
+               class_results = {}
+               for entry in race_results:
+                   data_entry = entry.to_dict()
+                   race_class = data_entry["race_class"]
+                   
+                   if race_class not in valid_classes:
+                       continue
+                   
+                   if race_class not in class_results:
+                       class_results[race_class] = []
+                   
+                   class_results[race_class].append(data_entry)
+               
+               for race_class, entries in class_results.items():
+                   sorted_entries = sorted(entries, key=lambda x: x['finishtime'])
+                   
+                   if race_class not in points:
+                       points[race_class] = {}
+                   
+                   for position, entry in enumerate(sorted_entries[:3]):
+                       driver_name = entry['driver_name']
+                       
+                       
+                       if driver_name not in points[race_class]:
+                           points[race_class][driver_name] = {
+                               'total_points': 0,
+                               'first_places': 0,
+                               'second_places': 0,
+                               'third_places': 0
+                           }
+
+                       if position == 0:
+                           points[race_class][driver_name]['total_points'] += 3
+                           points[race_class][driver_name]['first_places'] += 1
+                       elif position == 1:
+                           points[race_class][driver_name]['total_points'] += 2
+                           points[race_class][driver_name]['second_places'] += 1
+                       elif position == 2:
+                           points[race_class][driver_name]['total_points'] += 1
+                           points[race_class][driver_name]['third_places'] += 1
+           
+           return points
+
+def get_top_drivers_stige(driver_name=None):
     from app import get_db
-    from models import RaceData
+    from models import RaceData, ManualEntries
     from sqlalchemy import func
-
-
-
 
     valid_classes = [
         "700 Stock",
@@ -133,22 +180,26 @@ def get_top_drivers_stige():
         "2-Takt Turbo Modified",
         "Top Fuel",
         "Millennium Improved Stock",
+        "Trail Unlimited"
     ]
-    
+
     with get_db() as db:
-        # Modified subquery to include event_title
+        filter_conditions = [RaceData.race_title.ilike('%Stige%'), RaceData.enabled == True]
+
+#        if driver_name is not None:
+#            filter_conditions.append(RaceData.driver_name == driver_name)
+
         subquery = db.query(
             RaceData.event_title,
             RaceData.race_title,
             func.max(RaceData.heat).label('max_heat')
         ).filter(
-            RaceData.race_title.ilike('%Stige%')
+            *filter_conditions
         ).group_by(
             RaceData.event_title,
             RaceData.race_title
         ).subquery()
 
-        # Modified join condition to include event_title
         events = db.query(RaceData).join(
             subquery,
             (RaceData.event_title == subquery.c.event_title) &
@@ -156,22 +207,111 @@ def get_top_drivers_stige():
             (RaceData.heat == subquery.c.max_heat)
         ).all()
 
+        manual_entrues = db.query(ManualEntries).filter().all()
+
+        if driver_name is not None:
+            result = {}
+
+            for a in manual_entrues:
+                man_data = a.to_dict()
+                man_event_title = man_data["event_title"]
+                man_date = man_data["event_date"]
+
+                for b in man_data["races"]:
+                    driver_pos = b["driver_places"]
+                    race_title = b["race_title"]
+                    mode = b["mode"]
+                    if "stige" in race_title.lower():
+                        for c in driver_pos:
+                            if driver_name in c["driver"] and int(mode) == 3:
+                                key = f"{man_date} - {man_event_title} - {race_title}"
+                                pos = c["position"]
+                                print(pos, key)
+                                if pos < 4 and pos != 0:
+                                    result[key] = {key: 4 - pos}
+                
+            for event in events:
+                data_entry = event.to_dict()
+                if data_entry["driver_name"] != driver_name:
+                    continue
+                    
+                key = f"{data_entry['date']} - {data_entry['event_title']} - {data_entry['race_title']}"
+                points = 0
+
+                if data_entry["pair_id"] == 1:
+                    if data_entry["status"] == 1:
+                        points = 3
+                    elif data_entry["status"] == 2:
+                        points = 2
+                elif data_entry["pair_id"] == 2:
+                    if data_entry["status"] == 1:
+                        points = 1
+
+                result[key] = {key: points}
+
+            return sorted(result.values(), key=lambda x: list(x.keys())[0])
+
+        man_point = {}
         points = {}
+
+        for a in manual_entrues:
+            man_data = a.to_dict()
+            man_event_title = man_data["event_title"]
+            man_date = man_data["event_date"]
+            for b in man_data["races"]:
+
+                if "stige" in b["race_title"].lower():
+                    driver_pos = b["driver_places"]
+                    race_title = b["race_title"]
+                    race_class = race_title.replace(" - Stige", "")
+                    race_class = race_class.replace(" -Stige", "")
+
+                    for entry in b["driver_places"]:
+                        driver_name = entry["driver"]
+                        points_man = entry["position"]
+
+                        if race_class not in points:
+                            points[race_class] = {}
+                        
+                        if driver_name not in points[race_class]:
+                            points[race_class][driver_name] = {
+                                'total_points': 0,
+                                'first_places': 0,
+                                'second_places': 0,
+                                'third_places': 0
+                            }
+
+                        if points_man == 1:
+                            if driver_name == "Jon Atle Helle":
+                                print(driver_name, man_event_title, man_date, "dddddd")
+                            points[race_class][driver_name]['total_points'] += 3
+                            points[race_class][driver_name]['first_places'] += 1
+
+                        elif points_man == 2:
+                            points[race_class][driver_name]['total_points'] += 2
+                            points[race_class][driver_name]['second_places'] += 1
+
+                        if points_man == 3:
+
+                            points[race_class][driver_name]['total_points'] += 1
+                            points[race_class][driver_name]['third_places'] += 1
+
 
         for a in events:
             data_entry = a.to_dict()
             race_class = data_entry["race_class"]
+            race_title = data_entry["event_title"]
 
-            print(race_class)
             driver_name = data_entry["driver_name"]
-            if race_class not in valid_classes:
-                continue
+            
+            if race_class == "Rookie: 0-850ccm (16-20)":
+                race_class = "Rookie 16-18"
+            elif race_class == "Rookie 16-18 (850 Stock)":
+                race_class = "Rookie 16-18"
 
-            # Initialize race class if not exists
             if race_class not in points:
                 points[race_class] = {}
             
-            # Initialize driver if not exists
             if driver_name not in points[race_class]:
                 points[race_class][driver_name] = {
                     'total_points': 0,
@@ -182,21 +322,19 @@ def get_top_drivers_stige():
             
             if data_entry["pair_id"] == 1:
                 if data_entry["status"] == 1:
-                    # First place
                     points[race_class][driver_name]['total_points'] += 3
                     points[race_class][driver_name]['first_places'] += 1
                 elif data_entry["status"] == 2:
-                    # Second place
+
                     points[race_class][driver_name]['total_points'] += 2
                     points[race_class][driver_name]['second_places'] += 1
             elif data_entry["pair_id"] == 2:
                 if data_entry["status"] == 1:
-                    # Third place
                     points[race_class][driver_name]['total_points'] += 1
                     points[race_class][driver_name]['third_places'] += 1
 
+
         return points
-            
 
 def get_kvali(event=None):
     from app import get_db

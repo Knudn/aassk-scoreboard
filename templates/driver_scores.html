@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="min-h-screen bg-gray-50 py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- Minimalistic Header -->
+        <div class="text-center border-b border-gray-200 pb-6">
+            <h1 class="text-3xl font-medium text-gray-800">{{ request.args.get('name', 'Driver') }}</h1>
+        </div>
+
+        <!-- Medal Summary -->
+        {% set gold = namespace(count=0) %}
+        {% set silver = namespace(count=0) %}
+        {% set bronze = namespace(count=0) %}
+
+        {% set gold_finale = namespace(count=0) %}
+        {% set silver_finale = namespace(count=0) %}
+        {% set bronze_finale = namespace(count=0) %}
+        
+        {% for race in stige_points %}
+            {% for event, position in race.items() %}
+                {% if position == 3 %}
+                    {% set gold.count = gold.count + 1 %}
+                {% elif position == 2 %}
+                    {% set silver.count = silver.count + 1 %}
+                {% elif position == 1 %}
+                    {% set bronze.count = bronze.count + 1 %}
+                {% endif %}
+            {% endfor %}
+        {% endfor %}
+        {% for race in finale_points %}
+            {% for event, position in race.items() %}
+                {% if position == 3 %}
+                    {% set gold_finale.count = gold_finale.count + 1 %}
+                {% elif position == 2 %}
+                    {% set silver_finale.count = silver_finale.count + 1 %}
+                {% elif position == 1 %}
+                    {% set bronze_finale.count = bronze_finale.count + 1 %}
+                {% endif %}
+            {% endfor %}
+        {% endfor %}
+        <div class="w-full px-2 sm:px-4 py-4">
+            <div class="flex justify-center items-center gap-6 sm:gap-12 md:gap-16">
+
+                <div class="bg-gray-50 rounded-lg p-3 shadow-sm">
+                    <h2 class="text-sm sm:text-lg font-semibold text-gray-700 mb-2 text-center">Drag/Bakkedrag</h2>
+                    <div class="flex justify-center gap-2 sm:gap-4 md:gap-8">
+                        <div class="text-center">
+                            <p class="text-base sm:text-lg md:text-xl font-medium text-gray-800">🥇 {{ gold.count }}</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-base sm:text-lg md:text-xl font-medium text-gray-800">🥈 {{ silver.count }}</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-base sm:text-lg md:text-xl font-medium text-gray-800">🥉 {{ bronze.count }}</p>
+                        </div>
+                    </div>
+                </div>
+        
+                <div class="bg-gray-50 rounded-lg p-3 shadow-sm">
+                    <h2 class="text-sm sm:text-lg font-semibold text-gray-700 mb-2 text-center">Bakkeløp</h2>
+                    <div class="flex justify-center gap-2 sm:gap-4 md:gap-8">
+                        <div class="text-center">
+                            <p class="text-base sm:text-lg md:text-xl font-medium text-gray-800">🥇 {{ gold_finale.count }}</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-base sm:text-lg md:text-xl font-medium text-gray-800">🥈 {{ silver_finale.count }}</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-base sm:text-lg md:text-xl font-medium text-gray-800">🥉 {{ bronze_finale.count }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Table Container -->
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden w-full">
+            <table class="w-full">
+                <thead>
+                    <tr class="bg-gray-100 border-b border-gray-200">
+                        <th class="px-4 py-3 text-left text-sm font-medium text-gray-600 lg:px-6">Event</th>
+                        <th class="px-2 py-3 text-center text-sm font-medium text-gray-600 w-20">Plassering</th>
+                        <th class="px-2 py-3 text-center text-sm font-medium text-gray-600 w-24 lg:w-32">🏆</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for race in stige_points %}
+                        {% for event, position in race.items() %}
+                            
+                                {% if position != 0 %}
+                                <tr class="hover:bg-gray-50">
+                                <td class="px-4 lg:px-6 py-4">
+                                    {% set event_parts = event.split(' - ') %}
+                                    
+                                    <div class="text-sm text-gray-900">
+                                        <div class="font-medium">{{ event_parts[-2] }}</div>
+                                        <div class="text-xs text-gray-500 mt-1">
+                                            {{ event_parts[0] }} - {{ event_parts[1] }}
+                                        </div>
+                                    </div>
+                                    
+                                </td>
+                                <td class="px-2 py-4 text-center">
+                                    {% if position == 3 %}
+                                        <span class="text-sm font-medium text-gray-700">#1</span>
+                                    {% elif position == 2 %}
+                                        <span class="text-sm font-medium text-gray-700">#2</span>
+                                    {% elif position == 1 %}
+                                        <span class="text-sm font-medium text-gray-700">#3</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-2 py-4">
+                                    <div class="flex justify-center">
+                                        {% if position == 3 %}
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs lg:text-sm font-medium bg-yellow-50 text-yellow-700">
+                                                🥇
+                                            </span>
+                                        {% elif position == 2 %}
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs lg:text-sm font-medium bg-gray-50 text-gray-700">
+                                                🥈
+                                            </span>
+                                        {% elif position == 1 %}
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs lg:text-sm font-medium bg-orange-50 text-orange-700">
+                                                🥉
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endif %}
+
+                        {% endfor %}
+                    {% endfor %}
+                    {% for race in finale_points %}
+                        {% for event, position in race.items() %}
+                            
+                                {% if position != 0 %}
+                                <tr class="hover:bg-gray-50">
+                                <td class="px-4 lg:px-6 py-4">
+                                    {% set event_parts = event.split(' - ') %}
+                                    
+                                    <div class="text-sm text-gray-900">
+                                        <div class="font-medium">{{ event_parts[-2] }}</div>
+                                        <div class="text-xs text-gray-500 mt-1">
+                                            {{ event_parts[0] }} - {{ event_parts[1] }}
+                                        </div>
+                                    </div>
+                                    
+                                </td>
+                                <td class="px-2 py-4 text-center">
+                                    {% if position == 3 %}
+                                        <span class="text-sm font-medium text-gray-700">#1</span>
+                                    {% elif position == 2 %}
+                                        <span class="text-sm font-medium text-gray-700">#2</span>
+                                    {% elif position == 1 %}
+                                        <span class="text-sm font-medium text-gray-700">#3</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-2 py-4">
+                                    <div class="flex justify-center">
+                                        {% if position == 3 %}
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs lg:text-sm font-medium bg-yellow-50 text-yellow-700">
+                                                🥇
+                                            </span>
+                                        {% elif position == 2 %}
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs lg:text-sm font-medium bg-gray-50 text-gray-700">
+                                                🥈
+                                            </span>
+                                        {% elif position == 1 %}
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs lg:text-sm font-medium bg-orange-50 text-orange-700">
+                                                🥉
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endif %}
+
+                        {% endfor %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+    </div>
+</div>
+{% endblock %}

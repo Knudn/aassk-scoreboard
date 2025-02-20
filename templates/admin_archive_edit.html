@@ -485,6 +485,7 @@ function saveEventTitleConfig(event, oldEventTitle, year) {
         },
         body: JSON.stringify(data)
     })
+    console.log(response)
     .then(response => response.json())
     .then(data => {
         if (data.success) {

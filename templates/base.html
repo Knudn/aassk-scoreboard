@@ -215,31 +215,37 @@
                     </div>
                 </div>
                 {% if events %}
-                    {% set years = {} %}
-                    {% for date, date_events in events.items() %}
-                        {% set year = date[:4] %}
-                        {% if year not in years %}
-                            {% set _ = years.update({year: {}}) %}
-                        {% endif %}
-                        {% for event_name, races in date_events.items() %}
-                            {% if event_name not in years[year] %}
-                                {% set _ = years[year].update({event_name: {}}) %}
-                            {% endif %}
-                            {% for race in races %}
-                                {% set race_parts = race.rsplit(' - ', 1) %}
-                                {% set race_title = race_parts[0].strip() %}
-                                {% set race_type = race_parts[1] if race_parts|length > 1 else 'Other' %}
+                    {%- set years = {} -%}
+                    {%- for date, date_events in events.items() -%}
 
-                                {% if race_type == "Kval" %}
-                                    {% set race_type = "Kvalifisering" %}
+                        {%- set year = date[:4] -%}
+                        {%- if year not in years -%}
+                            {%- set _ = years.update({year: {}}) -%}
+                        {%- endif %}
+                        {%- for event_name, races in date_events.items() -%}
+                            {%- if event_name not in years[year] -%}
+                                {%- set _ = years[year].update({event_name: {}}) -%}
+                            {% endif %}
+                            {%- for race in races -%}
+
+                                {%- set race_parts = race.rsplit(' - ', 1) -%}
+                                {%- set race_title = race_parts[0].strip() -%}
+
+                                {%- set race_type = race_parts[1] if race_parts|length > 1 else 'Other' -%}
+
+
+                                {%- if race_type == "Kval" -%}
+                                    {%- set race_type = "Kvalifisering" -%}
+
                                 {% endif %}
-                                
-                                {% if race_type not in years[year][event_name] %}
-                                    {% set _ = years[year][event_name].update({race_type: []}) %}
+
+                                {%- if race_type not in years[year][event_name] -%}
+                                    {%- set _ = years[year][event_name].update({race_type: []}) -%}
+
                                 {% endif %}
-                                {% set _ = years[year][event_name][race_type].append(race_title) %}
+                                {%- set _ = years[year][event_name][race_type].append(race_title) -%}
                             {% endfor %}
-                        {% endfor %}
+                        {%- endfor -%}
                     {% endfor %}
 
                     {% for year, year_events in years.items() %}
@@ -257,12 +263,14 @@
                                         </button>
                                         <div class="hidden">
                                             {% for race_type, race_titles in event_types.items() %}
+                                            {% if race_type != "Other" %}
                                             <div class="menu-level-3 border-l border-blue-400 ml-4 center">
                                                 <a href="/event/{{ year }}/{{ event_name }}/{{ race_type }}" class="w-full text-left py-2 px-4 rounded hover:bg-blue-700 flex items-center block">
                                                     <svg class="w-2 h-2 mr-2" fill="currentColor" viewBox="0 0 8 8" xmlns="http://www.w3.org/2000/svg"><circle cx="4" cy="4" r="3"></circle></svg>
                                                     {{ race_type }}
                                                 </a>
                                             </div>
+                                            {% endif %}
                                             {% endfor %}
                                         </div>
                                     </div>
