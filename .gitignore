@@ -39,3 +39,7 @@ node_modules/
 
 # Tailwind CSS
 static/css/output.css
+
+*.pdf
+*.png
+*.jpg
