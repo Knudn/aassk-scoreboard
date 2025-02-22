@@ -139,9 +139,10 @@ function convertMilliseconds(ms) {
 function createRaceAccordion(raceName, raceData) {
     const accordionItem = document.createElement('div');
     accordionItem.className = 'mb-4 bg-white rounded-lg shadow-md overflow-hidden border_new';
-    
+    div_id = raceName.split("-")[0].replace(" ", "").replace(" ", "")
     const header = document.createElement('div');
     header.className = 'bg-gray-100 p-4 cursor-pointer flex justify-between items-center transition-colors duration-300 hover:bg-gray-200';
+    header.id = div_id
     header.innerHTML = `
         <span class="font-semibold text-lg center">${raceName}</span>
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -60,15 +60,16 @@
                         <tr class="border-b">
                             <th class="text-left py-1 w-6">#</th>
                             <th class="text-left py-1">Fører</th>
-                            <th class="text-right py-1 w-14">Poeng</th>
-                            <th class="text-right py-1 w-24">Plassering</th>
+                            <th class="text-right py-1 w-14" style="text-align: center;">Poeng</th>
+                            <th class="text-right py-1 w-24" style="text-align: center;">Plassering</th>
                         </tr>
                     </thead>
                     <tbody class="driver-list">
                         {% for driver, stats in (drivers.items() | sort(reverse=True, attribute='1.total_points'))[:5] %}
                         <tr class="border-b last:border-0 driver-row" {% if loop.index > 3 %}style="display: none;"{% endif %}>
                             <td class="py-1.5">{{ loop.index }}</td>
-                            <td class="py-1.5"><a href="/hall-of-fame?name={{driver}}" class="text-blue-600 hover:text-blue-800">{{ driver }}</a></td>                            <td class="text-right py-1.5 text-center">{{ stats.total_points }}</td>
+                            <td class="py-1.5"><a href="/hall-of-fame?name={{driver}}" class="text-blue-600 hover:text-blue-800">{{ driver }}</a></td>                            
+                            <td class="text-right py-1.5 text-center" style="text-align: center;">{{ stats.total_points }}</td>
                             <td class="text-right py-1.5">
                                 <div class="flex justify-end space-x-2 text-xs">
                                     <span title="First Places" class="inline-flex items-center">
@@ -108,16 +109,16 @@
                         <tr class="border-b">
                             <th class="text-left py-1 w-6">#</th>
                             <th class="text-left py-1">Fører</th>
-                            <th class="text-right py-1 w-14">Poeng</th>
-                            <th class="text-right py-1 w-24">Plassering</th>
+                            <th class="text-right py-1 w-14" style="text-align: center;">Poeng</th>
+                            <th class="text-right py-1 w-24" style="text-align: center;">Plassering</th>
                         </tr>
                     </thead>
                     <tbody class="driver-list">
                         {% for driver, stats in (drivers.items() | sort(reverse=True, attribute='1.total_points'))[:5] %}
                         <tr class="border-b last:border-0 driver-row" {% if loop.index > 3 %}style="display: none;"{% endif %}>
                             <td class="py-1.5">{{ loop.index }}</td>
-                            <td class="py-1.5"><a href="/hall-of-fame?name={{driver}}" class="text-blue-600 hover:text-blue-800">{{ driver }}</a></td>                            <td class="text-right py-1.5 text-center">{{ stats.total_points }}</td>
-                            <td class="text-right py-1.5 text-center">{{ stats.total_points }}</td>
+                            <td class="py-1.5"><a href="/hall-of-fame?name={{driver}}" class="text-blue-600 hover:text-blue-800">{{ driver }}</a></td>                            
+                            <td class="text-right py-1.5 text-center" style="text-align: center;">{{ stats.total_points }}</td>
                             <td class="text-right py-1.5">
                                 <div class="flex justify-end space-x-2 text-xs">
                                     <span title="First Places" class="inline-flex items-center">
