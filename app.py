@@ -32,6 +32,7 @@ app = Flask(__name__)
 #CORS(app)  # This applies CORS to all routes
 app.config['SECRET_KEY'] = '123123'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['last_json_data'] = {}
 socketio = SocketIO(app)
 
 use_auth = True
@@ -139,13 +140,15 @@ def get_kvali_data(year, event_name, event_type):
 
         return None, data, str(event_date)
 
-def get_ladder_data_live():
+def get_ladder_data_live(race_title=None):
     from models import RealTimeData
 
     with get_db() as db:
-        event_data = db.query(RealTimeData).filter(
-            RealTimeData.race_title.ilike(f'%Stige%')).order_by(RealTimeData.race_title).all()
-
+        if race_title is not None:
+            event_data = db.query(RealTimeData).filter(RealTimeData.race_title==race_title).order_by(RealTimeData.race_title).all()
+        else:
+            event_data = db.query(RealTimeData).filter(RealTimeData.race_title.ilike(f'%Stige%')).order_by(RealTimeData.race_title).all()
+        
         data = {
             "Timedata": {},
             "event_data": []
@@ -207,7 +210,8 @@ def get_ladder_data_live():
         if data["event_data"]:
             event_lst.append(data)
         
-
+        if race_title != None:
+            return event_lst
         return event_lst, table_data, event_date
 
 def get_finale(year, event_name, event_type):
@@ -286,7 +290,6 @@ def get_finale(year, event_name, event_type):
 
 
         return table_data, entry_date, False
-    
 
 def get_ladder_data(year, event_name, event_type):
     with get_db() as db:
@@ -520,6 +523,7 @@ def live():
             return render_template('live_finale.html', events=events, live_event_state=live_event_state)
         
         elif "stige" in realtime_state_dict["active_race"].lower():
+            print("asdasdasd")
             return render_template('live_stige.html', events=events, live_event_state=live_event_state)
         
         elif "kval" in realtime_state_dict["active_race"].lower():
@@ -563,9 +567,8 @@ def handle_device_connected(data):
                 for a in real_time_data_objects:
                     json_data["driver_data"].append(a.to_dict())
                     
-
-
-            else:
+            
+            elif "kvalifisering" in realtime_state["active_race"].lower():
                 real_time_data_objects = db.query(RealTimeData).filter(RealTimeData.race_title==realtime_state["active_race"], RealTimeData.heat==realtime_state["active_heat"]).all()
                 race_data = [rdata.to_dict() for rdata in real_time_data_objects]
                 kvali_data = get_kvali(realtime_state["active_race"])
@@ -580,8 +583,15 @@ def handle_device_connected(data):
                 except:
                     json_data["kvali_crit"] = 99
 
-            emit('server_response', {'data': json.dumps(json_data)}, room=request.sid)
-
+            else:
+                real_time_data_objects = db.query(RealTimeData).filter(RealTimeData.race_title==realtime_state["active_race"], RealTimeData.heat==realtime_state["active_heat"]).all()
+                race_data = [rdata.to_dict() for rdata in real_time_data_objects]
+                json_data["state"] = realtime_state
+                json_data["driver_data"] = race_data
+                
+                json_data["ladder_data"] = get_ladder_data_live(realtime_state["active_race"])
+        
+        emit('server_response', {'data': json.dumps(json_data)}, room=request.sid)
 
 @app.route("/api/update_active_race_status", methods = ['POST'])
 def active_race_status():
@@ -667,7 +677,15 @@ def live_eventer():
     events, live_event_state = get_event_race_data()
 
     return render_template('live_event_list.html', events=events,live_event_state=live_event_state, active_events=active_events, event_name=event_name, active_heat=active_heat)
-    
+
+@app.route("/test", methods=['GET'])
+def test():
+    import json
+
+    data = get_ladder_data_live("Trail Unlimited - Stige")
+
+    return json.dumps(data)
+
 @app.route("/live/resultatliste", methods=['GET'])
 def live_resultatliste():
     from models import RealTimeData, RealTimeKvaliData, RealTimeState
@@ -1234,7 +1252,9 @@ def realtime_data_update():
             elif "finale" in race_title.lower():
                 finale_data = get_finale_live(race_title)
                 mode = "finale"
-                
+            elif "stige" in race_title.lower():
+                 json_data["ladder_data"] = get_ladder_data_live(race_title)
+
             else:
                 kvali_data = None
             json_data["state"] = realtime_state_dict
@@ -1247,7 +1267,10 @@ def realtime_data_update():
             except:
                 json_data["kvali_crit"] = 99
             
-            socketio.emit('message', {'data': json.dumps(json_data)}, room='live_data', namespace='/live_data')
+            if json_data != app.config["last_json_data"]:
+                
+                socketio.emit('message', {'data': json.dumps(json_data)}, room='live_data', namespace='/live_data')
+                app.config["last_json_data"] = json_data
 
         else:
             from models import live_event_liste

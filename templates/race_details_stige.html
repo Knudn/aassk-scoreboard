@@ -587,9 +587,6 @@ $(function() {
 
         const tableElement = createTableView(event, index);
 
-        eventElement.innerHTML = `
-            <h2 class="text-2xl font-bold mb-4">${event.event_data[0]}</h2>
-        `;
         eventElement.appendChild(bracketElement);
         eventElement.appendChild(tableElement);
         

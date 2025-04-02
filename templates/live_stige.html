@@ -4,8 +4,12 @@
     {% include 'toggle_live_switch.html' %}
 {% endwith %}
 
-<style>
+<!-- Important: Load jQuery FIRST before vendor.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/1.6.2/jquery.min.js"></script>
+<script src="{{ url_for('static', filename='js/ladder/vendor.js') }}"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/ladder/app.css') }}">
 
+<style>
     .table-wrapper {
         overflow-x: auto;
     }
@@ -82,23 +86,33 @@
         justify-content: center;
     }
     @media (max-width: 640px) {
-            .text-responsive {
-                font-size: 0.75rem;
-            }
-            .mobile_hide {
-                display: none;
-            }
+        .text-responsive {
+            font-size: 0.75rem;
         }
-        @media (min-width: 641px) and (max-width: 1024px) {
-            .text-responsive {
-                font-size: 0.875rem;
-            }
+        .mobile_hide {
+            display: none;
         }
-        @media (min-width: 1025px) {
-            .text-responsive {
-                font-size: 1rem;
-            }
+    }
+    @media (min-width: 641px) and (max-width: 1024px) {
+        .text-responsive {
+            font-size: 0.875rem;
         }
+    }
+    @media (min-width: 1025px) {
+        .text-responsive {
+            font-size: 1rem;
+        }
+    }
+    
+    /* Added for bracket scaling */
+    .tournament-bracket {
+        overflow: visible;
+        position: relative;
+    }
+    
+    .event-container {
+        margin-bottom: 3rem;
+    }
 </style>
 
 <div class="container mx-auto site_padding">
@@ -120,79 +134,77 @@
         </div>
     </div>
 
-
-      <!-- Accordion Item 1 -->
-<div class="border-b border-slate-200  rounded-md shadow-md mt-3 bg-white">
-    <button onclick="toggleAccordion(1)" class="text-center w-full flex justify-between items-center py-5 text-slate-800">
-      <span class="text-center" style="display: table; margin: 0 auto">Kvalifisering - Kombinerte Bestetid</span>
-      <span id="icon-1" class="text-slate-800 transition-transform duration-300">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4">
-          <path fill-rule="evenodd" d="M11.78 9.78a.75.75 0 0 1-1.06 0L8 7.06 5.28 9.78a.75.75 0 0 1-1.06-1.06l3.25-3.25a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06Z" clip-rule="evenodd" />
-        </svg>
-      </span>
-    </button>
-    <div id="content-1" class="max-h-0 overflow-hidden transition-all duration-300 ease-in-out">
-      <div class="text-sm text-slate-500">
-        <div id="kvali_data" class="mt-4">
-            <div class="relative overflow-x-auto shadow-md sm:rounded-lg">
-                <table>
-                    <thead>
-                        <tr>
-                            <th class="py-2 px-3">#</th>
-                            <th class="py-2 px-3">Navn</th>
-                            <th class="py-2 px-3 mobile_hide">Kjøretøy</th>
-                            <th class="py-2 px-3">Best Time</th>
-                        </tr>
-                    </thead>
-                    <tbody id="kvali_data_entries">
-    
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    
-      </div>
+    <div id="eventsContainer" class="mt-6 bg-white rounded-lg shadow-md">
+        <!-- Event containers will be dynamically inserted here -->
     </div>
-  </div>
-   
-   
-  <script>
-    function toggleAccordion(index) {
-      const content = document.getElementById(`content-${index}`);
-      const icon = document.getElementById(`icon-${index}`);
-   
-      // SVG for Down icon
-      const downSVG = `
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4">
-          <path fill-rule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
-        </svg>
-      `;
-   
-      // SVG for Up icon
-      const upSVG = `
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4">
-          <path fill-rule="evenodd" d="M11.78 9.78a.75.75 0 0 1-1.06 0L8 7.06 5.28 9.78a.75.75 0 0 1-1.06-1.06l3.25-3.25a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06Z" clip-rule="evenodd" />
-        </svg>
-      `;
-   
-      // Toggle the content's max-height for smooth opening and closing
-      if (content.style.maxHeight && content.style.maxHeight !== '0px') {
-        content.style.maxHeight = '0';
-        icon.innerHTML = upSVG;
-      } else {
-        content.style.maxHeight = content.scrollHeight + 'px';
-        icon.innerHTML = downSVG;
-      }
-    }
-  </script>
-
 </div>
 
-
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+
 <script>
     const socket = io('/live_data');
+
+    // Helper functions for the bracket
+    function saveFn(data, userData) {
+        console.log('Bracket data saved:', data);
+    }
+    
+    function edit_fn(container, data, place, time, doneCb) {
+        // Implement edit functionality if needed
+    }
+    
+    function render_fn(container, data, score, state) {
+        switch (state) {
+            case "empty-bye":
+                container.append("No team")
+                return;
+            case "empty-tbd":
+                container.append("Upcoming")
+                return;
+            case "entry-no-score":
+            case "entry-default-win":
+            case "entry-complete":
+                container.append(data.name).append();
+                return;
+        }
+    }
+    
+    function adjustBracketHeight(bracketElement) {
+        const jqBracket = bracketElement.querySelector('.jQBracket');
+        if (jqBracket) {
+            bracketElement.style.height = `${jqBracket.scrollHeight}px`;
+        }
+    }
+    
+    function scaleBracket(bracketElement) {
+        const windowWidth = window.innerWidth;
+        const containerWidth = bracketElement.parentElement.offsetWidth;
+        
+        let availableWidth;
+        if (windowWidth > 1023 && document.getElementById('sidebar')) {
+            const menuWidth = document.getElementById('sidebar').offsetWidth;
+            availableWidth = (windowWidth - menuWidth) * 0.95;
+        } else {
+            availableWidth = containerWidth * 0.95;
+        }
+    
+        const jqBracket = bracketElement.querySelector('.jQBracket');
+        if (jqBracket) {
+            const bracketWidth = jqBracket.offsetWidth;
+            const scale = Math.min(1, availableWidth / bracketWidth);
+            
+            jqBracket.style.transform = `scale(${scale})`;
+            jqBracket.style.transformOrigin = 'top left';
+            bracketElement.style.height = `${jqBracket.scrollHeight * scale}px`;
+            bracketElement.style.width = '100%';
+        }
+    }
+    
+    function scaleAllBrackets() {
+        document.querySelectorAll('.tournament-bracket').forEach(bracketElement => {
+            scaleBracket(bracketElement);
+        });
+    }
 
     socket.on('connect', () => {
         console.log('Connected to server');
@@ -212,12 +224,35 @@
             console.error('Error parsing data:', error);
             return;
         }
-        console.log(parsedData)
+        ladder_data = parse_ladder_data(parsedData["ladder_data"][0]);
         updateRaceData(parsedData);
+        
+        // Clear previous brackets
+        document.getElementById('eventsContainer').innerHTML = '';
+        
+        // Create bracket element
+        const eventElement = document.createElement('div');
+        eventElement.id = `event1`;
+        eventElement.className = 'event-container mb-8';
+        
+        const bracketElement = document.createElement('div');
+        bracketElement.id = `doubleElimination1`;
+        bracketElement.className = 'tournament-bracket';
+    
+
+        eventElement.appendChild(bracketElement);
+        
+        document.getElementById('eventsContainer').appendChild(eventElement);
+        
+        // Initialize the bracket
+        initializeBracket(ladder_data, 1);
+        
+        // Scale the bracket
+        setTimeout(scaleAllBrackets, 100);
     });
 
     socket.on('message', (data) => {
-        console.log('Received message:', data);
+        
         let parsedData;
         try {
             parsedData = typeof data === 'object' ? data : JSON.parse(data);
@@ -228,9 +263,273 @@
             console.error('Error parsing data:', error);
             return;
         }
+        ladder_data = parse_ladder_data(parsedData["ladder_data"][0]);
         updateRaceData(parsedData);
+        document.getElementById('eventsContainer').innerHTML = '';
+        
+        const eventElement = document.createElement('div');
+        eventElement.id = `event1`;
+        eventElement.className = 'event-container mb-8';
+        
+        const bracketElement = document.createElement('div');
+        bracketElement.id = `doubleElimination1`;
+        bracketElement.className = 'tournament-bracket';
+    
+
+        eventElement.appendChild(bracketElement);
+        
+        document.getElementById('eventsContainer').appendChild(eventElement);
+        
+        // Initialize the bracket
+        initializeBracket(ladder_data, 1);
+        
+        // Scale the bracket
+        setTimeout(scaleAllBrackets, 100);
     });
 
+
+    function driver_order_setting(timedata) {
+        var driver_order_object = {};
+        for (const key in timedata) {
+            if (timedata.hasOwnProperty(key)) {
+                const dataArray = timedata[key];
+                dataArray.forEach(entry => {
+                    if (!driver_order_object.hasOwnProperty(key)) {
+                        driver_order_object[key] = [];
+                    }
+                    driver_order_object[key].push(entry);
+                });
+            }
+        }
+        return driver_order_object;
+    }
+
+    function parse_ladder_data(originalData) {
+        let teams = [];
+        let results = [];
+        let driver_pair_order = driver_order_setting(originalData.Timedata)
+        let exit_loop = false
+        let skip_entry = false
+        let finale = []
+        let semi_finale = []
+        var heat_count = Math.ceil(Math.log2(originalData.Timedata["1"].length));
+        // Check if the required data exists and is in the correct format
+        if (originalData && originalData.Timedata && Array.isArray(originalData.Timedata["1"])) {
+            for (let i = 0; i < originalData.Timedata["1"].length; i += 2) {
+    
+                if (i + 1 < originalData.Timedata["1"].length) {
+                    // Create a pair with the current and next team
+                    let pair = [
+                        { "name": originalData.Timedata["1"][i][1] + " " + originalData.Timedata["1"][i][2], "flag": "no" },
+                        { "name": originalData.Timedata["1"][i + 1][1] + " " + originalData.Timedata["1"][i + 1][2], "flag": "no" }
+                    ];
+                    teams.push(pair);
+                } else {
+                    // If there's no pair (odd number of teams), add the last team alone
+                    let single = { "name": originalData.Timedata["1"][i][1] + " " + originalData.Timedata["1"][i][2], "flag": "no" };
+                    teams.push([single]);
+                }
+            }
+        } else {
+            console.error('Data is not available or in an unexpected format');
+        }
+        const isEven = num => num % 2 === 0;
+        full_loc_array = []
+        count = 0
+    
+    
+        for (let key in originalData.Timedata) {
+            med_loc_array = []
+            if (originalData.Timedata.hasOwnProperty(key)) {
+                
+                let dataArray = originalData.Timedata[key];
+                if (key == 1) { 
+                  num = key
+                } else {
+                  num = (key - 1)
+                }
+    
+                for (let driver_o in driver_pair_order[num]) {
+                  
+                  for (let i = 0; i < dataArray.length; i += 1) {
+    
+    
+                        if (typeof new_loc_array == 'undefined') {
+                              new_loc_array = []
+                            }
+                        
+                        if (heat_count == key) {
+                          let finale_pair = []
+                          let semi_finale_pair = []
+    
+                          let tmp_finale_pair = []
+                          let tmp_semi_finale = []
+    
+    
+                          count += 1
+                          let tmp_key = (key -1)
+                          if (driver_pair_order[(tmp_key)] == undefined) {
+                            tmp_key += 1
+                          }
+                          
+                          if (driver_pair_order[(tmp_key)][0][5] > driver_pair_order[(tmp_key)][1][5] && driver_pair_order[(tmp_key)][1][6] == 0) {
+                            tmp_semi_finale.push(driver_pair_order[(tmp_key)][0])
+                            tmp_finale_pair.push(driver_pair_order[(tmp_key)][1])
+    
+    
+                          } else {
+                            tmp_semi_finale.push(driver_pair_order[(tmp_key)][1])
+                            tmp_finale_pair.push(driver_pair_order[(tmp_key)][0])
+                          }
+    
+                          if (driver_pair_order[(tmp_key)].length > 2) {
+                            
+                          if (driver_pair_order[(tmp_key)][2][5] > driver_pair_order[(tmp_key)][3][5] && driver_pair_order[(tmp_key)][3][6] == 0) {
+                            tmp_semi_finale.push(driver_pair_order[(tmp_key)][2])
+                            tmp_finale_pair.push(driver_pair_order[(tmp_key)][3])
+                          } else {
+                            tmp_semi_finale.push(driver_pair_order[(tmp_key)][3])
+                            tmp_finale_pair.push(driver_pair_order[(tmp_key)][2])
+                          }
+                        }
+    
+    
+                          for (let b in driver_pair_order[(tmp_key)]) {
+    
+                            for (let g in tmp_finale_pair) {
+                              if (tmp_finale_pair[g][5] == driver_pair_order[(tmp_key)][b][5]) {
+                                for (let h in driver_pair_order[(key)]) {
+                                  if (driver_pair_order[key][h][0] == tmp_finale_pair[g][0]) {
+                                    if (driver_pair_order[key][h][6] == 1) {
+                                      finale_pair.push(11111111)
+                                    } else if (driver_pair_order[key][h][6] == 2) {
+                                      finale_pair.push(22222222)
+                                    } else if (driver_pair_order[key][h][6] == 3) {
+                                      finale_pair.push(33333333)
+                                    } else {
+                                      finale_pair.push(driver_pair_order[key][h][5])
+                                    }
+                                  }
+                                }
+                              }
+                            }
+    
+                            for (let g in tmp_semi_finale) {
+                              if (tmp_semi_finale[g][5] == driver_pair_order[(tmp_key)][b][5]) {
+                                for (let h in driver_pair_order[(key)]) {
+                                  if (driver_pair_order[key][h][0] == tmp_semi_finale[g][0]) {
+                                    if (driver_pair_order[key][h][6] == 1) {
+                                      semi_finale_pair.push(11111111)
+                                    } else if (driver_pair_order[key][h][6] == 2) {
+                                      semi_finale_pair.push(22222222)
+                                    } else if (driver_pair_order[key][h][6] == 3) {
+                                      semi_finale_pair.push(33333333)
+                                    } else {
+                                      semi_finale_pair.push(driver_pair_order[key][h][5])
+                                    }
+                                    
+                                  }
+                                }
+                              }
+                            }
+                        }
+                        
+                        med_loc_array.push(finale_pair)
+                        med_loc_array.push(semi_finale_pair)
+                          exit_loop = true;
+                          break
+    
+                        } else if (driver_pair_order[num][driver_o][0] == dataArray[i][0] && heat_count != key) {
+                            count += 1
+    
+                            if (dataArray[i][6] == 1) {
+                              entry = 11111111
+                            } else if (dataArray[i][6] == 2) {
+                              entry = 22222222
+    
+                            } else if (dataArray[i][6] == 3)
+                              entry = 33333333
+    
+                            else {
+                              entry = dataArray[i][5]
+                              }
+                            new_loc_array.push(entry)
+    
+                            if (count == 2) {
+                              count = 0
+                              
+                              med_loc_array.push(new_loc_array)
+                              new_loc_array = []
+                              break;
+                            }
+                   } 
+              }
+              if (exit_loop == true) {break}
+          }
+            }
+            full_loc_array.push(med_loc_array)
+    
+        }
+        if (full_loc_array[1] == undefined) {
+            full_loc_array[0] = [full_loc_array[0][0][0], full_loc_array[0][1][0]]
+        }
+        
+        results = full_loc_array
+        data = {teams, results}
+        return data
+    
+    }
+
+    function processDriverTime(driverData) {
+        if (driverData[6] === 1) return 11111111;
+        if (driverData[6] === 2) return 22222222;
+        if (driverData[6] === 3) return 33333333;
+        return driverData[5];
+    }
+   
+    function initializeBracket(data, eventIndex) {
+        const driversNum = data.teams.length * 2;
+        let teamWidth, scoreWidth, matchMargin, roundMargin;
+    
+        if (driversNum <= 4) {
+            teamWidth = 300;
+            scoreWidth = 60;
+            matchMargin = 100;
+            roundMargin = 100;
+        } else if (driversNum <= 8) {
+            teamWidth = 300;
+            scoreWidth = 60;
+            matchMargin = 100;
+            roundMargin = 100;
+        } else if (driversNum <= 16) {
+            teamWidth = 220;
+            scoreWidth = 60;
+            matchMargin = 30;
+            roundMargin = 80;
+        } else {
+            teamWidth = 250;
+            scoreWidth = 60;
+            matchMargin = 15;
+            roundMargin = 80;
+        }
+    
+        $(`#doubleElimination${eventIndex}`).bracket({
+            dir: 'lr',
+            disableToolbar: true,
+            teamWidth: teamWidth,
+            scoreWidth: scoreWidth,
+            matchMargin: matchMargin,
+            roundMargin: roundMargin,
+            centerConnectors: true,
+            init: data,
+            save: saveFn,
+            decorator: {
+                edit: edit_fn,
+                render: render_fn
+            }
+        });
+    }
+   
     function convertMilliseconds(ms) {
         const seconds = (ms / 1000).toFixed(3);
         const minutes = Math.floor(seconds / 60);
@@ -280,7 +579,7 @@
                 finishtime_msg = convertMilliseconds(activeDriver1.finishtime);
             }
         } else {
-            activeDriver1 = { driver_name: 'N/A', vehicle: 'N/A', finishtime: 'N/A' };
+            activeDriver1 = { driver_name: 'N/A', vehicle: 'N/A', finishtime: 'N/A', penalty: 0 };
             finishtime_msg = 'N/A';
         }
 
@@ -299,7 +598,7 @@
                 
             }
         } else {
-            activeDriver2 = { driver_name: 'N/A', vehicle: 'N/A', finishtime: 'N/A' };
+            activeDriver2 = { driver_name: 'N/A', vehicle: 'N/A', finishtime: 'N/A', penalty: 0 };
             finishtime_msg2 = 'N/A';
         }
 
@@ -419,7 +718,7 @@
                 color2 = 'green';
             }
 
-            if (activeDriver1.cid == driver_1.cid || activeDriver2.cid == driver_1.cid) {
+            if (activeDriver1 && activeDriver2 && (activeDriver1.cid == driver_1.cid || activeDriver2.cid == driver_1.cid)) {
                 color_active_session = '#00ffff42';
             } else {
                 color_active_session = 'none';
@@ -446,55 +745,21 @@
         } else {
             driver_1 = driver;
         }
-    
-        
-    });
-    kvali_entry_num = 0;
-    document.getElementById('kvali_data_entries').innerHTML = ``;
-    raceData.kvali_data.forEach(function (driver) { 
-
-        if (driver.penalty == 1) {
-            driver.finishtime = 'DNS';
-        } else if (driver.penalty == 2) {
-            driver.finishtime = 'DNF';
-        } else if (driver.penalty == 3) {
-            driver.finishtime = 'DSQ';
-        } else {
-            driver.finishtime = convertMilliseconds(driver.finishtime);
-        }
-        kvali_entry_num += 1;
-
-        document.getElementById('kvali_data_entries').innerHTML += `
-                <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                    <td class="py-2 px-3 text-center">
-                        ${kvali_entry_num}
-                    </td>
-                    <td class="py-2 px-3">
-                        ${driver.driver_name}
-                    </td>
-                    <td class="py-2 px-3 mobile_hide">
-                        ${driver.vehicle}
-                    </td>
-                    <td class="py-2 px-3">
-                        ${driver.finishtime}
-                    </td>
-                </tr>
-            `;
-        if (kvali_entry_num == kvali_crit) {
-            document.getElementById('kvali_data_entries').innerHTML += `
-                    <tr>
-                        <td colspan="4" class="qualify-line">
-                            <span class="qualify-text">Kvalifisering til Stige</span>
-                        </td>
-                    </tr>
-            `;
-        }
     });
     
     }
     function oddOrEven(x) {
         return ( x & 1 ) ? "odd" : "even";
     }
+    
+    // Add window.onload event to initialize scaling for brackets
+    window.onload = function() {
+        setTimeout(scaleAllBrackets, 300);
+    };
+    
+    // Add window resize event
+    window.addEventListener('resize', function() {
+        setTimeout(scaleAllBrackets, 100);
+    });
 </script>
-
 {% endblock %}

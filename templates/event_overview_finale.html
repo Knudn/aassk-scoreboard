@@ -87,7 +87,7 @@
 {% block scripts %}
 {{ super() }}
 <script>
-race_data = JSON.parse('{{ table_data | tojson | safe }}');
+race_data = JSON.parse('{{ table_data | tojson | safe | replace("\\r","") }}');
 
 drivers = []
 
