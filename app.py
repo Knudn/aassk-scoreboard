@@ -291,10 +291,173 @@ def get_finale(year, event_name, event_type):
 
         return table_data, entry_date, False
 
-def get_ladder_data(year, event_name, event_type):
+
+def process_race_standings(event_data):
+    """
+    Process race data from database query results and determine standings for all races.
+    
+    Args:
+        event_data: List of RaceData objects from database query
+    
+    Returns:
+        dict: Nested dictionary of events, races, and driver standings
+              Format: {event_title: {race_title: [{'driver': name, 'position': pos, 'points': pts}]}}
+    """
+    
+    events = {}
+    for a in event_data:
+        entry_dict = a.to_dict()
+        
+        if entry_dict["event_title"] not in events:
+            events[entry_dict["event_title"]] = {}
+            
+        if entry_dict["race_title"] not in events[entry_dict["event_title"]]:
+            events[entry_dict["event_title"]][entry_dict["race_title"]] = {}
+            
+        events[entry_dict["event_title"]][entry_dict["race_title"]][entry_dict["driver_name"]] = [
+            entry_dict["heat"], 
+            entry_dict["pair_id"], 
+            entry_dict["status"], 
+            entry_dict["finishtime"], 
+            entry_dict["penalty"]
+        ]
+    
+    results = {}
+    
+    point_system = {
+        1: 1,
+        2: 2,
+        3: 3,
+        4: 4,
+        5: 5,
+        9: 6,
+        17: 7
+    }
+    
+    for event_title, races in events.items():
+        results[event_title] = {}
+        
+        for race_title, drivers in races.items():
+            if not drivers:
+                continue
+                
+            max_heat = max(drivers[driver][0] for driver in drivers)
+            
+            drivers_by_heat = {}
+            for driver_name, data in drivers.items():
+                heat = data[0]
+                if heat not in drivers_by_heat:
+                    drivers_by_heat[heat] = []
+                
+                drivers_by_heat[heat].append({
+                    'name': driver_name,
+                    'heat': heat,
+                    'pair_id': data[1],
+                    'status': data[2],
+                    'finishtime': data[3],
+                    'penalty': data[4]
+                })
+            
+            # Identify the top 4 positions
+            finalists = drivers_by_heat.get(max_heat, [])
+            
+            # Initialize positions
+            first, second, third, fourth = None, None, None, None
+            
+            # Find 1st and 2nd place (pair_id = 1 in the finals)
+            final_pair1 = [d for d in finalists if d['pair_id'] == 1]
+            if len(final_pair1) == 2:
+                winner = next((d for d in final_pair1 if d['status'] == 1), None)
+                loser = next((d for d in final_pair1 if d['status'] == 2), None)
+                
+                if winner:
+                    first = winner['name']
+                if loser:
+                    second = loser['name']
+            
+            # Find 3rd and 4th place (pair_id = 2 in the finals)
+            final_pair2 = [d for d in finalists if d['pair_id'] == 2]
+            if len(final_pair2) == 2:
+                winner = next((d for d in final_pair2 if d['status'] == 1), None)
+                loser = next((d for d in final_pair2 if d['status'] == 2), None)
+                
+                if winner:
+                    third = winner['name']
+                if loser:
+                    fourth = loser['name']
+            
+            # Calculate points for all drivers
+            total_drivers = len(drivers)
+            points = {}
+            
+            # Determine default points based on total number of drivers
+            default_points = 7  # For 17-32 drivers
+            if total_drivers <= 4:
+                default_points = 4
+            elif total_drivers <= 8:
+                default_points = 5
+            elif total_drivers <= 16:
+                default_points = 5
+            
+            for driver in drivers:
+                points[driver] = default_points
+            
+            if first:
+                points[first] = 1
+            if second:
+                points[second] = 2
+            if third:
+                points[third] = 3
+            if fourth:
+                points[fourth] = 4
+            
+            if max_heat > 1:
+                semifinal_heat = max_heat - 1
+                semifinalists = drivers_by_heat.get(semifinal_heat, [])
+                
+                # Exclude drivers who advanced to finals
+                top_four = [name for name in [first, second, third, fourth] if name]
+                eliminated_semifinalists = [
+                    driver for driver in semifinalists 
+                    if driver['name'] not in top_four
+                ]
+                
+                # Assign 5 points to 5th-8th places
+                for driver in eliminated_semifinalists:
+                    points[driver['name']] = 5
+            
+            # Create final standings sorted by points
+            standings = [
+                {'driver': driver, 'position': i+1, 'points': pts}
+                for i, (driver, pts) in enumerate(sorted(points.items(), key=lambda x: x[1]))
+            ]
+            
+            # Store results for this race
+            results[event_title][race_title] = standings
+    
+    return results
+
+def get_ladder_data_standing(year, event_name):
+    from sqlalchemy import or_, and_
+
     with get_db() as db:
+        event_data = db.query(RaceData).filter(
+            and_(
+                or_(*[RaceData.race_title.ilike(f'%{name}%') for name in event_name]),
+                RaceData.date.ilike(f'%{year}%'),
+            )
+        ).order_by(RaceData.event_title).all()
+        data = process_race_standings(event_data)
+
+    return data
+
+def get_ladder_data(year, event_name, event_type, cup=None):
+    from sqlalchemy import or_, and_
+    with get_db() as db:
+        
         event_data = db.query(RaceData).filter(RaceData.race_title.ilike(f'%{event_type}%'), RaceData.date.ilike(f'%{year}%'), RaceData.event_title == event_name).order_by(RaceData.event_title).all()
 
+        
         data = {
             "Timedata": {},
             "event_data": []
@@ -353,37 +516,37 @@ def get_ladder_data(year, event_name, event_type):
                 data["Timedata"][t.heat] = []
 
             data["Timedata"][t.heat].append([t.cid, t.driver_name, "", t.driver_club, t.vehicle, t.finishtime, t.penalty, t.inter_1])
-        
+        if cup == None:        
         # Add the last group of data after the loop ends
-        if data["event_data"] != []:
-            event_lst.append(data)
-        else:
-            from models import ManualEntries
-            manual_entries = db.query(ManualEntries).filter(
-                ManualEntries.event_title == event_name,
-                ManualEntries.event_date.isnot(None) & (extract('year', ManualEntries.event_date) == year)
-            ).all()
+            if data["event_data"] != []:
+                event_lst.append(data)
+            else:
+                from models import ManualEntries
+                manual_entries = db.query(ManualEntries).filter(
+                    ManualEntries.event_title == event_name,
+                    ManualEntries.event_date.isnot(None) & (extract('year', ManualEntries.event_date) == year)
+                ).all()
 
-            keep_strings = ["Stige"]
-            mid_lst = []
-            
-            for entry in manual_entries:
-                for race in entry.to_dict()["races"]:
-                    entry_date = entry.to_dict()["event_date"]
-                    event_title = entry.to_dict()["event_title"]
+                keep_strings = ["Stige"]
+                mid_lst = []
+                
+                for entry in manual_entries:
+                    for race in entry.to_dict()["races"]:
+                        entry_date = entry.to_dict()["event_date"]
+                        event_title = entry.to_dict()["event_title"]
 
-                    if "stige" in race["race_title"].lower():
-                        mid_lst.append(race)
+                        if "stige" in race["race_title"].lower():
+                            mid_lst.append(race)
 
-                        race_title = race["race_title"]
+                            race_title = race["race_title"]
 
-            table_data = [{
-                "date":entry_date,
-                "event_title": event_title,
-                "race_title": race_title,
-                "drivers": mid_lst
-            }]
-            return event_lst, table_data, event_date, True
+                table_data = [{
+                    "date":entry_date,
+                    "event_title": event_title,
+                    "race_title": race_title,
+                    "drivers": mid_lst
+                }]
+                return event_lst, table_data, event_date, True
 
         return event_lst, reordered_table_data, event_date, False
     
@@ -472,9 +635,163 @@ def check_creds(token):
         return False
     else:
         return True
+    
+def aggregate_driver_points(race_standings):
+    """
+    Aggregate points for each driver by race title across all events.
+    
+    Args:
+        race_standings (dict): Nested dictionary of event standings from process_race_standings
+                              Format: {event_title: {race_title: [{'driver': name, 'position': pos, 'points': pts}]}}
+    
+    Returns:
+        dict: Updated race_standings with a new key 'aggregated_points' containing
+              aggregated points by race title
+              Format: race_standings['aggregated_points'] = {race_title: [{'driver': name, 'total_points': points}]}
+    """
+    # Initialize the aggregated points dictionary
+    aggregated_points = {}
+    
+    # Collect all unique race titles
+    all_race_titles = set()
+    for event in race_standings.values():
+        all_race_titles.update(event.keys())
+    
+    # Initialize aggregated points structure for each race title
+    for race_title in all_race_titles:
+        aggregated_points[race_title] = {}
+    
+    # Aggregate points across all events for each race title and driver
+    for event_title, races in race_standings.items():
+        for race_title, standings in races.items():
+            for standing in standings:
+                driver_name = standing['driver']
+                points = standing['points']
+                
+                # Initialize driver in aggregated points if not present
+                if driver_name not in aggregated_points[race_title]:
+                    aggregated_points[race_title][driver_name] = 0
+                
+                # Add points to driver's total for this race title
+                aggregated_points[race_title][driver_name] += points
+    
+    # Convert to the desired format: {race_title: [{'driver': name, 'total_points': points}]}
+    formatted_aggregated_points = {}
+    for race_title, drivers in aggregated_points.items():
+        # Sort drivers by points (lowest first, as lower points are better)
+        sorted_drivers = sorted(
+            [{'driver': driver, 'total_points': points} for driver, points in drivers.items()],
+            key=lambda x: x['total_points']
+        )
+        formatted_aggregated_points[race_title] = sorted_drivers
+    
+    # Add the aggregated points to the original standings dictionary
+    race_standings['aggregated_points'] = formatted_aggregated_points
+    
+    return race_standings
+
+def filter_drivers(results_dict, allowed_drivers_dict):
+    """
+    Filter out drivers from the results dictionary who are not in the allowed drivers dictionary.
+    If a driver is in allowed_drivers_dict but not in results_dict, they get 
+    one more point than the highest-scoring driver in that class.
+    
+    Args:
+        results_dict (dict): Nested dictionary containing competition results
+        allowed_drivers_dict (dict): Dictionary with class names as keys and lists of allowed drivers as values
+        
+    Returns:
+        dict: Filtered results dictionary
+    """
+    filtered_results = {}
+
+    for event_name, event_data in results_dict.items():
+        filtered_results[event_name] = {}
+                
+        for class_name, class_data in event_data.items():
+            filtered_results[event_name][class_name] = []
+            
+            base_class_name = class_name.split(" - Stige")[0]
+            
+            if base_class_name in allowed_drivers_dict:
+                allowed_names = allowed_drivers_dict[base_class_name]
+                
+                # First pass: gather existing drivers and find max points
+                existing_drivers = set()
+                max_points = 0
+                
+                for driver_entry in class_data:
+                    if driver_entry["driver"] in allowed_names:
+                        filtered_results[event_name][class_name].append(driver_entry)
+                        existing_drivers.add(driver_entry["driver"])
+                        if "points" in driver_entry and driver_entry["points"] > max_points:
+                            max_points = driver_entry["points"]
+                
+                # Second pass: add missing drivers with max_points + 1
+                for driver_name in allowed_names:
+                    if driver_name not in existing_drivers:
+                        new_entry = {
+                            "driver": driver_name,
+                            "points": max_points + 1
+                        }
+                        filtered_results[event_name][class_name].append(new_entry)
+            else:
+                filtered_results[event_name][class_name] = []
+
+    return filtered_results
+
+@app.route('/cup', methods=['GET', 'POST'])
+def cup_test():
+    import json
+    from models import CupEntries
+
+    event_name = "Norgermesterskap"
+    race_type = "Stige"
+    data = {
+        "2-Takt Turbo Open Modified": ["Bjørn Viki", "Espen Bryggeså", "Fredrik Åsland", "Jan Sigvald Thorsland", "Ole André Olsen", "Olav Kristian Stangvik"],
+        "2-Takt Turbo Stock": ["Jan Sigvald Thorsland","Espen Bryggeså", "Fredrik Åsland", "Gaute Eikild", "Johnny Bjelland", "Lars Erik Skeibrok", "Lukas Helle", "Ole André Olsen"],
+        "600 Stock": ["Daniel Stulien", "Espen Bryggeså", "Johnny Bjelland", "John Ola Åsland", "Knut Even Nesland", "Lukas Helle", "Ole André Olsen", "Olav Kristian Stangvik", "Sigbjørn Oksefjell Ribe", "Terje Verdal", "Tor Elling Eikerapen", "Vilde Thorsland Lauen", "Yngve Ousdal"],
+        "700 Stock": ["Daniel Stulien", "John Ola Åsland", "Knut Even Nesland", "Mathias Skomedal", "Ole André Olsen", "Olav Kristian Stangvik", "Sigbjørn Oksefjell Ribe", "Svein Rune Lauen", "Terje Verdal", "Yngve Ousdal"],
+        "800 Stock": ["Aanund Slettetveit", "Dag Helge Aas", "Jan Sigvald Thorsland", "Knut Even Nesland", "Margrethe Stølen-Stean", "Olav Kristian Stangvik", "Vilde Ketilsdotter Homme", "Vilde Thorsland Lauen"],
+        "900 Stock": ["Andine Telhaug","Aanund Slettetveit", "Daniel Harstad", "Edvin Rykkelid", "Gaute Eikild", "Hege Viki", "Jan Sigvald Thorsland", "Lars Kåre Egelandsdal Skeie", "Oda Tobiassen Seland", "Olav Kristian Stangvik", "Sigbjørn Oksefjell Ribe", "Terje Verdal", "Yngve Ousdal"],
+        "Pro Stock": ["Aanund Slettetveit", "Even Hobbesland", "Gaute Eikild", "Geir Josdal", "Hege Viki", "Jan Sigvald Thorsland", "Lars Kåre Egelandsdal Skeie", "Ola Terje Handeland", "Olav Kristian Stangvik", "Terje Verdal", "Torstein Hermansen", "Yngve Ousdal"],
+        "Rekrutt 13-14": ["Andreas Nøkland", "Anna Hodne Syvertsen", "Daniel Honnemyr", "Jonas Ovedal"],
+        "Retro klasse 8": ["Dag Helge Aas", "Espen Urevatn", "Fredrik Åsland", "Gaute Eikild", "Geir Josdal", "Johnny Bjelland", "Svein Oskar Waldeland", "Tom Handeland", "Tor Elling Eikerapen"],
+        "Top Fuel": ["Dag Gunnar Telhaug","Arne Johnnysson Pedersen", "Bjørn Terje Viki", "Bjørn Vidar Klepsland", "Daniel Stulien", "Fredrik Rysstad", "Håvard Rafoss", "Håvard Skeie Holte", "Jan Erik Uppstad", "Jostein Nomeland", "Ole André Olsen", "Olav Kristian Stangvik", "Tom Handeland", "Tor Arne Larsen Kasin", "Tor-Agnar Slåtta"],
+        "Trail Unlimited": ["Arne Johnnysson Pedersen", "Bjørn Terje Viki", "Bjørn Viki", "Bjørn Nøkland", "Daniel Harstad", "Daniel Stulien", "Edvin Rykkelid", "Fredrik Rysstad", "Håvard Skeie Holte", "Jakob Austegard", "Jan Erik Uppstad", "Jostein Nomeland", "Lars Erik Skeibrok", "Morten Håvorstad", "Ole André Olsen", "Olav Kristian Stangvik", "Tom Handeland", "Tor Arne Larsen Kasin", "Tor-Agnar Slåtta", "Vilde Ketilsdotter Homme"],
+        "Ungdom 14-16 Med Pro Stock 600": ["Aksel Josdal Nymoen", "Arthur Nordgaard", "August Haddeland", "Benjamin Sandåker-Åsland", "Brynjar Smeland", "Daniel Hauan Skille", "Eivind Austad Uppstad", "Håvard Oksefjell Ribe", "Magnus Reiersdal", "Ole Bjørnestad Josdal", "Ole Gunnar Lio Hermansen", "Torleiv Håkon Løyland-Helle"],
+        "Ungdom 14-16 Uten Pro Stock 600": ["August Haddeland", "Brynjar Smeland", "Daniel Hauan Skille"]
+    }
+    classes = [
+        "2-Takt Turbo Open Modified - Stige",
+        "2-Takt Turbo Stock - Stige",
+        "600 Stock - Stige",
+        "700 Stock - Stige",
+        "800 Stock - Stige",
+        "900 Stock - Stige",
+        "Pro Stock - Stige",
+        "Rekrutt 13-14 - Stige",
+        "Retro klasse 8 - Stige",
+        "Top Fuel - Stige",
+        "Trail Unlimited - Stige",
+        "Ungdom 14-16 Med Pro Stock 600 - Stige",
+        "Ungdom 14-16 Uten Pro Stock 600 - Stige",
+    ] 
+    year = 2025
+    race_type = "Stige"
+    test = get_ladder_data_standing(year, classes)
+    filtered = filter_drivers(test, data)
+    sorted_points = aggregate_driver_points(filtered)
+    events, live_event_state = get_event_race_data()
+    for k, b in enumerate(sorted_points):
+        if k == 0:
+            for t in sorted_points[b]:
+                if t == "Trail Turbo - Stige":
+                    print(sorted_points[b][t])
+    return render_template('cup.html', data=sorted_points, events=events, live_event_state=live_event_state)
 
 @app.route('/')
-def home():
+def index():
     from models import RaceData, RealTimeData, RealTimeState
     from sqlalchemy import distinct
 

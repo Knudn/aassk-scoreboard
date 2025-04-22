@@ -150,3 +150,22 @@ class ManualEntries(Base):
             'driver_places': races[0]['driver_places'] if races else [],
             'pdf_filename': races[0].get('pdf_filename') if races else None
         }
+
+class CupEntries(Base):
+    __tablename__ = 'cup_entries'
+    id = Column(Integer, primary_key=True)
+    name = Column(String(80), nullable=False)
+    event = Column(String(80), nullable=False)
+    class_name = Column(String(80), nullable=False)
+    year = Column(Integer, nullable=False)
+    point = Column(Integer, nullable=False)
+
+class CupDrivers(Base):
+    __tablename__ = 'cup_drivers'
+    
+    id = Column(Integer, primary_key=True)
+    year = Column(Integer, nullable=False)
+    name = Column(String(80), nullable=False)
+    class_name = Column(String(80), nullable=False)
+
+

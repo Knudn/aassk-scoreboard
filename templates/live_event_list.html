@@ -9,56 +9,150 @@
     .txt_center {
         text-align: center;
     }
+    
+    /* Add responsive table container */
+    .table-container {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin-bottom: 1rem;
+    }
+    
+    /* Table styles */
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    /* Responsive styles for different screen sizes */
+    @media (max-width: 768px) {
+        .container {
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+            width: 100%;
+        }
+        
+        /* Reduce padding for mobile */
+        th, td {
+            padding: 0.5rem 0.75rem !important; /* Override the inline px-6 */
+        }
+        
+        /* Ensure text is visible */
+        .text-xs {
+            font-size: 0.7rem;
+        }
+        
+        .text-sm {
+            font-size: 0.8rem;
+        }
+    }
+    
+    /* Smaller mobile screens */
+    @media (max-width: 480px) {
+        th, td {
+            padding: 0.4rem 0.5rem !important;
+        }
+        
+        /* Make # column smaller */
+        th:first-child, td:first-child {
+            width: 40px;
+            min-width: 40px;
+        }
+        
+        /* Make Run column fixed width */
+        th:last-child, td:last-child {
+            width: 60px;
+            min-width: 60px;
+        }
+        
+        /* Make Event Name take remaining space */
+        th:nth-child(2), td:nth-child(2) {
+            width: auto;
+        }
+    }
+    
+    /* Fix for highlighted rows to ensure they're visible */
+    tr[style*="background-color"] {
+        background-color: rgb(0 81 255 / 37%) !important;
+    }
+    
+    /* Ensure viewport is correctly set */
+    @viewport {
+        width: device-width;
+        initial-scale: 1.0;
+    }
 </style>
+
+<!-- Setup proper viewport meta tag via script -->
+<script>
+    // Ensure correct viewport meta tag
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check if viewport meta exists
+        let viewportMeta = document.querySelector('meta[name="viewport"]');
+        
+        if (!viewportMeta) {
+            // Create it if it doesn't exist
+            viewportMeta = document.createElement('meta');
+            viewportMeta.name = 'viewport';
+            document.head.appendChild(viewportMeta);
+        }
+        
+        // Set appropriate content for responsive design
+        viewportMeta.content = 'width=device-width, initial-scale=1.0, maximum-scale=5.0';
+    });
+</script>
+
 <div class="min-h-screen flex justify-center items-center center">
     <div class="container max-w-3xl">
         <div class="bg-white rounded-lg shadow-lg overflow-hidden">
-            <table class="min-w-full divide-y divide-gray-200 center w-full" >
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            #
-                        </th>
-                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Event Name
-                        </th>
-                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Run
-                        </th>
-                    </tr>
-                </thead>
+            <div class="table-container">
+                <table class="min-w-full divide-y divide-gray-200 center w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                #
+                            </th>
+                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Event Name
+                            </th>
+                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Run
+                            </th>
+                        </tr>
+                    </thead>
 
-                <tbody class="bg-white divide-y divide-gray-200">
-                    {% for event_entry in active_events %}
-                    {% if event_name|trim == event_entry.event_navn|trim and active_heat == event_entry.heat %}
-                    <tr class="hover:bg-gray-50 transition-colors duration-200" style="background-color: rgb(0 81 255 / 37%);">
-                                <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-800">
-                                    {{ event_entry.id + 1 }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-800 txt_center">
-                                    {{ event_entry.event_navn }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-800 txt_center">
-                                    {{ event_entry.heat }}
-                                </td>
-                            </tr>
-                        {% else %}
-                            <tr class="hover:bg-gray-50 transition-colors duration-200">
-                                <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-800 txt_center">
-                                    {{ event_entry.id + 1 }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-800 txt_center">
-                                    {{ event_entry.event_navn }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-800 txt_center">
-                                    {{ event_entry.heat }}
-                                </td>
-                            </tr>
-                        {% endif %}
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for event_entry in active_events %}
+                        {% if event_name|trim == event_entry.event_navn|trim and active_heat == event_entry.heat %}
+                        <tr class="hover:bg-gray-50 transition-colors duration-200" style="background-color: rgb(0 81 255 / 37%);">
+                                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-800">
+                                        {{ event_entry.id + 1 }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-800 txt_center">
+                                        {{ event_entry.event_navn }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-800 txt_center">
+                                        {{ event_entry.heat }}
+                                    </td>
+                                </tr>
+                            {% else %}
+                                <tr class="hover:bg-gray-50 transition-colors duration-200">
+                                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-800 txt_center">
+                                        {{ event_entry.id + 1 }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-800 txt_center">
+                                        {{ event_entry.event_navn }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-800 txt_center">
+                                        {{ event_entry.heat }}
+                                    </td>
+                                </tr>
+                            {% endif %}
 
-                    {% endfor %}
-                </tbody>
-            </table>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
