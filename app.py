@@ -744,7 +744,8 @@ def filter_drivers(results_dict, allowed_drivers_dict):
 def cup_test():
     import json
     from models import CupEntries
-
+    out = request.args.get('output')
+    
     event_name = "Norgermesterskap"
     race_type = "Stige"
     data = {
@@ -760,7 +761,8 @@ def cup_test():
         "Top Fuel": ["Dag Gunnar Telhaug","Arne Johnnysson Pedersen", "Bjørn Terje Viki", "Bjørn Vidar Klepsland", "Daniel Stulien", "Fredrik Rysstad", "Håvard Rafoss", "Håvard Skeie Holte", "Jan Erik Uppstad", "Jostein Nomeland", "Ole André Olsen", "Olav Kristian Stangvik", "Tom Handeland", "Tor Arne Larsen Kasin", "Tor-Agnar Slåtta"],
         "Trail Unlimited": ["Arne Johnnysson Pedersen", "Bjørn Terje Viki", "Bjørn Viki", "Bjørn Nøkland", "Daniel Harstad", "Daniel Stulien", "Edvin Rykkelid", "Fredrik Rysstad", "Håvard Skeie Holte", "Jakob Austegard", "Jan Erik Uppstad", "Jostein Nomeland", "Lars Erik Skeibrok", "Morten Håvorstad", "Ole André Olsen", "Olav Kristian Stangvik", "Tom Handeland", "Tor Arne Larsen Kasin", "Tor-Agnar Slåtta", "Vilde Ketilsdotter Homme"],
         "Ungdom 14-16 Med Pro Stock 600": ["Aksel Josdal Nymoen", "Arthur Nordgaard", "August Haddeland", "Benjamin Sandåker-Åsland", "Brynjar Smeland", "Daniel Hauan Skille", "Eivind Austad Uppstad", "Håvard Oksefjell Ribe", "Magnus Reiersdal", "Ole Bjørnestad Josdal", "Ole Gunnar Lio Hermansen", "Torleiv Håkon Løyland-Helle"],
-        "Ungdom 14-16 Uten Pro Stock 600": ["August Haddeland", "Brynjar Smeland", "Daniel Hauan Skille"]
+        "Ungdom 14-16 Uten Pro Stock 600": ["August Haddeland", "Brynjar Smeland", "Daniel Hauan Skille"],
+        "Trail Turbo":["Tom Handeland", "Fredrik Åsland", "Johnny Bjelland", "Jan Sigvald Thorsland", "Ole André Olsen", "Øyvind Urevatn", "Håvard Skeie Holte", "Lars Erik Skeibrok"],
     }
     classes = [
         "2-Takt Turbo Open Modified - Stige",
@@ -776,18 +778,24 @@ def cup_test():
         "Trail Unlimited - Stige",
         "Ungdom 14-16 Med Pro Stock 600 - Stige",
         "Ungdom 14-16 Uten Pro Stock 600 - Stige",
+        "Trail Turbo - Stige",
     ] 
     year = 2025
     race_type = "Stige"
     test = get_ladder_data_standing(year, classes)
     filtered = filter_drivers(test, data)
     sorted_points = aggregate_driver_points(filtered)
-    events, live_event_state = get_event_race_data()
+
     for k, b in enumerate(sorted_points):
         if k == 0:
             for t in sorted_points[b]:
                 if t == "Trail Turbo - Stige":
                     print(sorted_points[b][t])
+                else:
+                    print(t)
+    if out == "json":
+        return json.dumps(sorted_points) 
+    events, live_event_state = get_event_race_data()
     return render_template('cup.html', data=sorted_points, events=events, live_event_state=live_event_state)
 
 @app.route('/')

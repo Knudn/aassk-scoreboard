@@ -30,6 +30,7 @@ class RaceData(Base):
     vehicle = Column(String)
     enabled = Column(Boolean, default=True)
     race_class = Column(String, default="None")
+    reaction = Column(Integer, default=0)
 
 
     def __repr__(self):

@@ -1,12 +1,16 @@
 {% extends "base.html" %}
 {% block content %}
 
+
 <div class="container mx-auto px-4 sm:px-6 md:px-8 py-6 max-w-6xl">
   <h1 class="text-2xl font-bold text-center mb-8">NORGES CUP 2025</h1>
   
   <!-- Main content - Championship Standings -->
   <div class="space-y-6">
-    <!-- Define all classes -->
+<div class="p-4 mb-4 text-sm text-blue-800 rounded-lg bg-blue-50 dark:bg-gray-800 dark:text-blue-400" role="alert">
+  <span class="font-medium">Info:</span> Ved lik poengsum vil siste løp på Haukeli avgjøre vinner
+</div>
+	  <!-- Define all classes -->
     {% set all_classes = [
         "2-Takt Turbo Open Modified - Stige",
         "2-Takt Turbo Stock - Stige",
@@ -20,11 +24,123 @@
         "Top Fuel - Stige",
         "Trail Unlimited - Stige",
         "Ungdom 14-16 Med Pro Stock 600 - Stige",
-        "Ungdom 14-16 Uten Pro Stock 600 - Stige"
+        "Ungdom 14-16 Uten Pro Stock 600 - Stige",
+	"Trail Turbo - Stige"
     ] %}
     
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th {
+      background-color: #4338ca;
+      color: white;
+      padding: 8px;
+      text-align: left;
+    }
+    td {
+      padding: 8px;
+      border-bottom: 1px solid #ddd;
+    }
+    tr:nth-child(even) {
+      background-color: #f2f2f2;
+    }
+    h1 {
+      text-align: center;
+    }
+  </style>
+
+    <h1>Fullført Resultatliste</h1>
+
+
+  <table>
+    <tr>
+      <th>Category</th>
+      <th>1</th>
+      <th>2</th>
+      <th>3</th>
+    </tr>
+    <tr>
+      <td>Ungdom 14-16 Med Pro Stock 600</td>
+      <td>Ole Bjørnestad Josdal</td>
+      <td>Torleiv Håkon Løyland-Helle</td>
+      <td>Aksel Josdal Nymoen</td>
+    </tr>
+    <tr>
+      <td>Retro</td>
+      <td>Tom Handeland</td>
+      <td>Svein Oskar Waldeland</td>
+      <td>Gaute Eikild</td>
+    </tr>
+    <tr>
+      <td>600</td>
+      <td>Yngve Ousdal</td>
+      <td>Daniel Stulien</td>
+      <td>Lukas Helle</td>
+    </tr>
+    <tr>
+      <td>700</td>
+      <td>Yngve Ousdal</td>
+      <td>Daniel Stulien</td>
+      <td>Olav Kristian Stangvik</td>
+    </tr>
+    <tr>
+      <td>800</td>
+      <td>Vilde Ketilsdotter Homme</td>
+      <td>Jan Sigvald Thorsland</td>
+      <td>Aanund Slettetveit</td>
+    </tr>
+    <tr>
+      <td>900</td>
+      <td>Yngve Ousdal</td>
+      <td>Lars Kåre Egelandsdal Skeie</td>
+      <td>Hege Viki</td>
+    </tr>
+    <tr>
+      <td>2-Takt Turbo Open Modified</td>
+      <td>Olav Kristian Stangvik</td>
+      <td>Jan Sigvald Thorsland</td>
+      <td>Espen Bryggeså</td>
+    </tr>
+    <tr>
+      <td>2-Takt Turbo Stock</td>
+      <td>Jan Sigvald Thorsland</td>
+      <td>Espen Bryggeså</td>
+      <td>Gaute Eikild</td>
+    </tr>
+    <tr>
+      <td>Trail Turbo</td>
+      <td>Jan Sigvald Thorsland</td>
+      <td>Fredrik Åsland/Lars Erik Skeibrok</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Trail Unlimited</td>
+      <td>Bjørn Terje Viki</td>
+      <td>Fredrik Rysstad</td>
+      <td>Daniel Stulien</td>
+    </tr>
+    <tr>
+      <td>Pro Stock</td>
+      <td>Yngve Ousdal</td>
+      <td>Jan Sigvald Thorsland</td>
+      <td>Gaute Eikild</td>
+    </tr>
+    <tr>
+      <td>Top Fuel</td>
+      <td>Bjørn Terje Viki</td>
+      <td>Fredrik Rysstad</td>
+      <td>Dag Gunnar Telhaug</td>
+    </tr>
+  </table>
+
     <!-- Define all events -->
-    {% set all_events = ["Bortelid", "Brokke", "Haukeli"] %}
+    {% set all_events = ["Bortelid Bakkedrag - Norgescup Runde 1", "Haukeli Bakkedrag - Norgescup Runde 2", "Haukeli Bakkedrag - Norgescup Runde 3"] %}
     
     <!-- Loop through categories -->
     {% for class_name in all_classes %}
@@ -47,7 +163,13 @@
                   
                   <!-- Event columns -->
                   {% for event_name in all_events %}
-                    <th class="py-2 px-2 text-center w-20">{{ event_name }}</th>
+		  	{% if event_name == "Bortelid Bakkedrag - Norgescup Runde 1"  %}
+                    		<th class="py-2 px-2 text-center w-20">Bortelid</th>
+			{% elif event_name == "Haukeli Bakkedrag - Norgescup Runde 2" %}
+				<th class="py-2 px-2 text-center w-20">Haukeli 1</th>
+			{% elif event_name == "Haukeli Bakkedrag - Norgescup Runde 3" %}
+				<th class="py-2 px-2 text-center w-20">Haukeli 2</th>
+			{% endif %}
                   {% endfor %}
                 </tr>
               </thead>
